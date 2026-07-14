@@ -1,0 +1,24 @@
+# Docker
+node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+.venv/
+env/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Temp
+*.log
+/tmp/

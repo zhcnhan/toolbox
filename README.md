@@ -1,13 +1,15 @@
 # Toolbox
 
 <p align="center">
-  <b>个人开发者工具箱</b> &mdash; 独立桌面工具、命令行工具、小玩具与代码片段的 Monorepo 合集
+  <b>个人开发者工具箱</b> &mdash; Web 应用、命令行工具、小玩具与代码片段的 Monorepo 合集
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/python-%3E%3D3.9-3776AB?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/python-%3E%3D3.10-3776AB?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/react-18-61DAFB?logo=react&logoColor=white" alt="React">
+  <img src="https://img.shields.io/badge/fastapi-0.115+-009688?logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker&logoColor=white" alt="Docker">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
 </p>
 
 ---
@@ -22,7 +24,7 @@
 
 | 目录 | 定位 | 示例 |
 |------|------|------|
-| [`apps/`](#apps) | GUI 桌面应用 | 格式转换器 |
+| [`apps/`](#apps) | Web 应用 / 桌面应用 | Format Converter |
 | [`cli-tools/`](#cli-tools) | 纯命令行工具 | — |
 | [`toys/`](#toys) | 小型趣味玩具 | — |
 | [`snippets/`](#snippets) | 可复用代码片段 | — |
@@ -32,40 +34,43 @@
 
 ## apps
 
-GUI 桌面应用程序，每个子目录是一个完整的独立项目。
+Web 应用或桌面应用程序，每个子目录是一个完整的独立项目。
 
 ### Format Converter
 
 <p align="center">
-  <b>全功能桌面格式转换程序</b><br/>
-  <sub>29+ 种格式 · 4 大类别 · 批量处理 · 拖放交互 · 深色 GUI</sub>
+  <b>万能格式转换 Web 服务</b><br/>
+  <sub>前后端分离 · 40+ 格式 · 6 大类别 · 批量处理 · Docker 一键部署</sub>
 </p>
 
-一款跨平台的桌面应用，覆盖日常开发中几乎所有的文件格式转换需求。
+一款前后端分离的 Web 格式转换服务，支持文档、图片、音频、视频、数据等格式之间的快速互转。
 
 | 类别 | 支持格式 | 引擎 |
 |------|----------|------|
-| 数据 | JSON · YAML · CSV · XML · TOML | PyYAML · xmltodict · tomli |
-| 图片 | JPG · PNG · WEBP · BMP · GIF · TIFF · ICO | Pillow |
-| 音频 | MP3 · WAV · FLAC · OGG · AAC · M4A · WMA · Opus · AIFF · AC3 | pydub + ffmpeg |
-| 视频 | MP4 · AVI · MKV · MOV · WEBM · FLV · WMV | ffmpeg-python |
+| 📄 文档 | PDF · DOCX · DOC · TXT · MD · HTML · EPUB · RTF | pdf2docx · PyPDF2 · python-docx · weasyprint |
+| 🖼️ 图片 | JPG · PNG · WEBP · BMP · GIF · ICO · TIFF · SVG | Pillow |
+| 🎵 音频 | MP3 · WAV · FLAC · OGG · AAC · M4A · WMA · Opus · AIFF | pydub + ffmpeg |
+| 🎬 视频 | MP4 · AVI · MKV · MOV · WEBM · FLV · WMV | ffmpeg-python |
+| 📊 数据 | JSON · YAML · CSV · XML · TOML | PyYAML · xmltodict · tomli |
 
 **功能亮点：**
-- 拖拽文件直接添加，支持批量处理
-- 多标签页 UI，每种类别独立操作互不干扰
-- 异步转换 + 实时进度条 + 日志面板
-- 自动检测源格式，智能匹配可转换的目标格式
-- 完善的异常捕获：格式不支持、文件不存在、编解码器缺失等均有中文提示
+- 🚀 **前后端分离** — React 18 + FastAPI，标准的 RESTful 架构
+- 🎨 **极致 UI** — 玻璃拟态设计、Framer Motion 动画、Tailwind CSS 深色主题
+- 🤖 **3D 互动人偶** — Three.js 渲染的页角角色，支持皮肤切换
+- 📦 **一键部署** — Docker Compose 一条命令上线
+- 📚 **Auto API Docs** — FastAPI 自动生成 Swagger / ReDoc 文档
+- 📁 **批量处理** — 拖放上传，实时进度追踪
 
 ```bash
 cd apps/format_converter
-pip install -r requirements.txt
-python -m format_converter
+docker compose up -d
+# 访问 http://localhost:8000
 ```
 
-> 音频/视频转换需要安装 FFmpeg 并添加到系统 PATH
+> 音频/视频转换需要 FFmpeg（Docker 镜像已内置）
 
 详细文档 → [apps/format_converter/README.md](apps/format_converter/README.md)
+部署教程 → [apps/format_converter/DEPLOY.md](apps/format_converter/DEPLOY.md)
 
 ---
 
@@ -105,30 +110,48 @@ python -m format_converter
 
 ```
 toolbox/
-├── apps/                                    # GUI 桌面工具
-│   └── format_converter/                    #   Format Converter
-│       ├── src/format_converter/            #     源码
-│       │   ├── gui/                         #     GUI 层
-│       │   │   ├── main_window.py           #       QTabWidget 主窗口
-│       │   │   ├── styles/theme.py          #       QSS 深色主题
-│       │   │   └── widgets/                 #       可复用组件
-│       │   ├── converters/                  #     转换器层
-│       │   │   ├── data/                    #       数据格式 (5个)
-│       │   │   ├── audio_converter.py       #       音频 (pydub)
-│       │   │   ├── video_converter.py       #       视频 (ffmpeg)
-│       │   │   └── image_converter.py       #       图片 (Pillow)
-│       │   └── utils/                       #     工具层
-│       ├── resources/licenses/              #     第三方许可证
-│       └── pyproject.toml / requirements.txt
+├── apps/                                         # Web / 桌面应用
+│   └── format_converter/                         #   Format Converter
+│       ├── backend/                              #     FastAPI 后端
+│       │   ├── format_converter/
+│       │   │   ├── main.py                       #       FastAPI 入口 + 路由
+│       │   │   ├── converters/                   #       转换引擎
+│       │   │   │   ├── document_converter.py     #         文档 (PDF/Word/MD)
+│       │   │   │   ├── image_converter.py        #         图片 (Pillow)
+│       │   │   │   ├── audio_converter.py        #         音频 (pydub)
+│       │   │   │   ├── video_converter.py        #         视频 (ffmpeg)
+│       │   │   │   └── data/                     #         数据格式 (5个)
+│       │   │   └── utils/                        #       格式映射 + 工具
+│       │   └── requirements.txt
+│       ├── frontend/                             #     React 前端
+│       │   ├── src/
+│       │   │   ├── App.jsx                       #       主应用
+│       │   │   ├── api/                          #       API 客户端
+│       │   │   └── components/                   #       组件库
+│       │   │       ├── Character3D.jsx           #         3D 互动人偶
+│       │   │       ├── Navbar.jsx                #         导航栏
+│       │   │       ├── DropZone.jsx              #         拖放上传
+│       │   │       ├── FormatSelector.jsx        #         格式选择
+│       │   │       ├── FileList.jsx              #         文件列表
+│       │   │       ├── ProgressPanel.jsx         #         进度面板
+│       │   │       ├── LogPanel.jsx              #         日志面板
+│       │   │       └── DownloadPanel.jsx         #         下载面板
+│       │   └── vite.config.js
+│       ├── Dockerfile                            #     Docker 构建
+│       ├── docker-compose.yml                    #     Docker Compose
+│       ├── nginx.conf                            #     Nginx 配置
+│       ├── DEPLOY.md                             #     部署教程
+│       ├── README.md                             #     项目文档
+│       └── pyproject.toml
 │
-├── cli-tools/                               # 纯命令行工具
-├── toys/                                    # 小型趣味玩具
-├── snippets/                                # 可复用代码片段
-├── tests/                                   # 实验性/测试程序
+├── cli-tools/                                    # 纯命令行工具
+├── toys/                                         # 小型趣味玩具
+├── snippets/                                     # 可复用代码片段
+├── tests/                                        # 实验性/测试程序
 │
-├── LICENSE                                  # MIT
-├── pyproject.toml                           # 仓库级配置
-└── README.md                                # 本文件
+├── LICENSE                                       # MIT
+├── pyproject.toml                                # 仓库级配置
+└── README.md                                     # 本文件
 ```
 
 ---
@@ -137,13 +160,17 @@ toolbox/
 
 | 层 | 选型 | 理由 |
 |----|------|------|
-| **GUI** | PySide6 (Qt 6) | LGPL 许可，跨平台原生外观，完善的信号/槽机制 |
-| **异步** | QThread + Signal | 不阻塞 UI 主线程，信号驱动进度更新 |
-| **音频** | pydub + ffmpeg | pydub 提供简洁的 Python API，底层经 ffmpeg 编解码 |
-| **视频** | ffmpeg-python | 对 ffmpeg CLI 的 Pythonic 封装，覆盖主流容器格式 |
-| **图片** | Pillow | 事实标准的 Python 图像库，支持 30+ 格式 |
-| **数据** | PyYAML · xmltodict · tomli | 纯文本格式通过「解析→中间对象→序列化」管道互转 |
-| **架构** | 注册表模式 | 新增格式只需注册 loader/dumper，无需修改调度逻辑 |
+| **前端框架** | React 18 + Vite 5 | 业界主流 SPA 方案，极快的 HMR 和构建速度 |
+| **UI 样式** | Tailwind CSS 3 | 原子化 CSS，深色主题，玻璃拟态设计 |
+| **动画** | Framer Motion 11 | 声明式动画库，流畅的页面过渡 |
+| **3D 渲染** | Three.js + React Three Fiber | WebGL 3D 角色渲染，声明式 3D 场景 |
+| **后端框架** | FastAPI | 异步高性能 Python Web 框架，自动生成 API 文档 |
+| **文档转换** | pdf2docx · python-docx · PyPDF2 · weasyprint | PDF/Word/Markdown/HTML 互转 |
+| **音频** | pydub + ffmpeg | 简洁 Python API + 强大编解码后端 |
+| **视频** | ffmpeg-python | ffmpeg CLI 的 Pythonic 封装 |
+| **图片** | Pillow | Python 图像处理事实标准 |
+| **数据** | PyYAML · xmltodict · tomli | 纯文本格式互转管道 |
+| **部署** | Docker + Docker Compose | 一键编排，环境一致 |
 
 ---
 

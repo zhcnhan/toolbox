@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  format-converter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: format-converter
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FORMAT_CONVERTER_ENV=production
+    volumes:
+      - uploads:/tmp/format_converter_uploads
+      - outputs:/tmp/format_converter_outputs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  uploads:
+  outputs:

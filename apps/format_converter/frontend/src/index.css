@@ -1,0 +1,359 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   Base
+   ============================================ */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background: #0d1017;
+  color: #e8ecf2;
+  font-family: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a3045;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3b4460;
+}
+
+/* ============================================
+   Background
+   ============================================ */
+.bg-mesh {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99,102,241,0.06), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(168,85,247,0.05), transparent),
+    radial-gradient(ellipse 40% 30% at 10% 60%, rgba(34,211,238,0.04), transparent);
+}
+
+/* ============================================
+   Glass card — layered surfaces
+   ============================================ */
+.glass {
+  background: #11141d;
+  border: 1px solid #1c2030;
+  border-radius: 16px;
+}
+
+.glass-elevated {
+  background: #161a25;
+  border: 1px solid #23273a;
+  border-radius: 16px;
+}
+
+/* ============================================
+   Gradient text
+   ============================================ */
+.gradient-text {
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============================================
+   Button styles
+   ============================================ */
+.btn-primary {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 12px 28px;
+  transition: all 0.25s;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 16px rgba(99,102,241,0.15);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4), 0 8px 32px rgba(99,102,241,0.3);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+.btn-primary:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-ghost {
+  background: #161a25;
+  color: #989fb0;
+  border: 1px solid #1c2030;
+  border-radius: 10px;
+  padding: 10px 20px;
+  transition: all 0.2s;
+  cursor: pointer;
+  font-weight: 500;
+}
+.btn-ghost:hover {
+  background: #1c2030;
+  color: #c8ced8;
+  border-color: #2a3045;
+}
+
+/* ============================================
+   Tab styles
+   ============================================ */
+.tab-item {
+  padding: 9px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #636b7d;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  background: transparent;
+  border: 1px solid transparent;
+}
+.tab-item:hover {
+  color: #989fb0;
+  background: #161a25;
+  border-color: #1c2030;
+}
+.tab-item.active {
+  color: #c7d2fe;
+  background: rgba(99,102,241,0.1);
+  border-color: rgba(99,102,241,0.2);
+}
+
+/* ============================================
+   Drop zone
+   ============================================ */
+.drop-zone {
+  border: 2px dashed #23273a;
+  border-radius: 16px;
+  background: #11141d;
+  transition: all 0.25s;
+  cursor: pointer;
+}
+.drop-zone:hover {
+  border-color: #3b4460;
+  background: #161a25;
+}
+.drop-zone.drag-active {
+  border-color: #818cf8;
+  background: rgba(99,102,241,0.06);
+  transform: scale(1.005);
+}
+
+/* ============================================
+   Select / Dropdown
+   ============================================ */
+.select-custom {
+  appearance: none;
+  background: #161a25;
+  border: 1px solid #23273a;
+  border-radius: 10px;
+  color: #e8ecf2;
+  padding: 10px 36px 10px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23636b7d' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+.select-custom option {
+  background: #161a25;
+  color: #e8ecf2;
+}
+.select-custom:hover {
+  border-color: #3b4460;
+  background-color: #1c2030;
+}
+.select-custom:focus {
+  outline: none;
+  border-color: rgba(99,102,241,0.5);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+.select-custom:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Custom dropdown (non-native) */
+.dropdown-btn {
+  width: 100%;
+  background: #161a25;
+  border: 1px solid #23273a;
+  border-radius: 10px;
+  color: #e8ecf2;
+  padding: 10px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dropdown-btn:hover {
+  border-color: #3b4460;
+  background: #1c2030;
+}
+.dropdown-btn:focus {
+  outline: none;
+  border-color: rgba(99,102,241,0.5);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+.dropdown-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.dropdown-btn .chevron {
+  transition: transform 0.2s;
+  flex-shrink: 0;
+  color: #636b7d;
+}
+.dropdown-btn .chevron.open {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  position: absolute;
+  z-index: 100;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  background: #161a25;
+  border: 1px solid #23273a;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.2);
+  max-height: 200px;
+  overflow-y: auto;
+  animation: dropdown-in 0.15s ease-out;
+}
+@keyframes dropdown-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-option {
+  padding: 9px 14px;
+  font-size: 14px;
+  color: #989fb0;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.dropdown-option:first-child { border-radius: 9px 9px 0 0; }
+.dropdown-option:last-child { border-radius: 0 0 9px 9px; }
+.dropdown-option:hover {
+  background: #1c2030;
+  color: #e8ecf2;
+}
+.dropdown-option.selected {
+  background: rgba(99,102,241,0.12);
+  color: #a5b4fc;
+}
+.dropdown-option.disabled {
+  color: #3b4460;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   Progress bar
+   ============================================ */
+.progress-gradient {
+  background: linear-gradient(90deg, #6366f1, #8b5cf6, #22d3ee);
+  background-size: 200% 100%;
+  animation: progress-shimmer 2s linear infinite;
+}
+@keyframes progress-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ============================================
+   Log terminal
+   ============================================ */
+.log-line {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  padding: 3px 0;
+  color: #989fb0;
+}
+.log-line.success { color: #34d399; }
+.log-line.error { color: #f87171; }
+.log-line.info { color: #818cf8; }
+
+/* ============================================
+   File item
+   ============================================ */
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #0d1017;
+  border: 1px solid #1c2030;
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+.file-item:hover {
+  background: #11141d;
+  border-color: #23273a;
+}
+
+/* ============================================
+   Result item
+   ============================================ */
+.result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+.result-item.success {
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.15);
+}
+.result-item.failed {
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.15);
+}
+
+/* ============================================
+   Animation utilities
+   ============================================ */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #161a25 25%, #1c2030 50%, #161a25 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
