@@ -24,7 +24,7 @@
 
 | 目录 | 定位 | 示例 |
 |------|------|------|
-| [`apps/`](#apps) | Web 应用 / 桌面应用 | Format Converter |
+| [`apps/`](#apps) | Web 应用 / 桌面应用类工具 | Format Converter |
 | [`cli-tools/`](#cli-tools) | 纯命令行工具 | — |
 | [`toys/`](#toys) | 小型趣味玩具 | — |
 | [`snippets/`](#snippets) | 可复用代码片段 | — |
