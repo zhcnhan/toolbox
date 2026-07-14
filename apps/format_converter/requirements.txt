@@ -1,0 +1,35 @@
+# ============================================================
+# Format Converter — 全功能桌面格式转换程序
+# ============================================================
+
+# --- GUI 框架 ---
+PySide6>=6.5
+
+# --- 数据处理 ---
+pyyaml>=6.0
+xmltodict>=0.13
+tomli>=2.0; python_version < "3.11"
+tomli-w>=1.0
+
+# --- 图片处理 ---
+# Pillow (PIL Fork) — Historical Permission Notice and Disclaimer (HPND) License
+# https://github.com/python-pillow/Pillow
+Pillow>=10.0
+
+# --- 音频处理 ---
+# pydub — MIT License
+# https://github.com/jiaaro/pydub
+pydub>=0.25
+
+# --- 视频处理 ---
+# ffmpeg-python — Apache-2.0 License
+# https://github.com/kkroening/ffmpeg-python
+ffmpeg-python>=0.2
+
+# ============================================================
+# 外部依赖说明：
+# ffmpeg 需要单独安装并添加到系统 PATH：
+#   - Windows: https://ffmpeg.org/download.html
+#   - macOS:   brew install ffmpeg
+#   - Linux:   sudo apt install ffmpeg
+# ============================================================

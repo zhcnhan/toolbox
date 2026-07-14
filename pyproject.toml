@@ -1,0 +1,15 @@
+[project]
+name = "toolbox"
+version = "1.0.0"
+description = "个人开发者工具箱 — 实用桌面工具、自动化脚本和开发辅助合集"
+requires-python = ">=3.9"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "zhcnhan" }]
+keywords = ["toolbox", "utilities", "converter", "tools"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools]
+packages = []

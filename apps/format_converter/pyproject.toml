@@ -1,0 +1,15 @@
+[project]
+name = "format-converter"
+version = "1.0.0"
+description = "全功能桌面格式转换程序 — 支持数据、音频、视频、图片格式互转"
+requires-python = ">=3.9"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "zhcnhan" }]
+keywords = ["converter", "format", "audio", "video", "image", "data", "gui"]
+
+[project.scripts]
+format-converter = "format_converter.main:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "pytest-qt>=4.2"]
