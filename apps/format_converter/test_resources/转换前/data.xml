@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <name>ToolboxTest</name>
+  <version>1.0.0</version>
+  <items>
+    <item>
+      <id>1</id>
+      <label>alpha</label>
+      <enabled>true</enabled>
+    </item>
+    <item>
+      <id>2</id>
+      <label>beta</label>
+      <enabled>false</enabled>
+    </item>
+    <item>
+      <id>3</id>
+      <label>gamma</label>
+      <enabled>true</enabled>
+    </item>
+  </items>
+</root>

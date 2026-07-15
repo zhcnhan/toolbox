@@ -1,0 +1,29 @@
+{
+  "name": "ToolboxTest",
+  "version": "1.0.0",
+  "items": [
+    {
+      "id": 1,
+      "label": "alpha",
+      "enabled": true
+    },
+    {
+      "id": 2,
+      "label": "beta",
+      "enabled": false
+    },
+    {
+      "id": 3,
+      "label": "gamma",
+      "enabled": true
+    }
+  ],
+  "metadata": {
+    "author": "test",
+    "tags": [
+      "demo",
+      "test",
+      "sample"
+    ]
+  }
+}

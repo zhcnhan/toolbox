@@ -1,4 +1,8 @@
-version: '3.8'
+# ============================================================
+# Format Converter — Docker Compose 配置
+# 一键部署：docker compose up -d
+# 运行测试：docker compose run --rm format-converter python test_resources/run_test.py
+# ============================================================
 
 services:
   format-converter:
@@ -11,15 +15,17 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - FORMAT_CONVERTER_ENV=production
+      - PYTHONIOENCODING=utf-8
     volumes:
       - uploads:/tmp/format_converter_uploads
       - outputs:/tmp/format_converter_outputs
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
+      start_period: 10s
 
 volumes:
   uploads:

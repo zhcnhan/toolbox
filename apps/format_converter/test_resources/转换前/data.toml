@@ -1,0 +1,22 @@
+[root]
+name = "ToolboxTest"
+version = "1.0.0"
+
+[[root.items]]
+id = 1
+label = "alpha"
+enabled = true
+
+[[root.items]]
+id = 2
+label = "beta"
+enabled = false
+
+[[root.items]]
+id = 3
+label = "gamma"
+enabled = true
+
+[root.metadata]
+author = "test"
+tags = ["demo", "test", "sample"]

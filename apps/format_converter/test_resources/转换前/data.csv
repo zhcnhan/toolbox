@@ -1,0 +1,4 @@
+id,label,enabled
+1,alpha,True
+2,beta,False
+3,gamma,True

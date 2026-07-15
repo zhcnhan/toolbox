@@ -3,24 +3,58 @@
 支持的转换路径:
     PDF  → DOCX  (pdf2docx)
     PDF  → TXT   (PyPDF2)
-    PDF  → 图片   (pdf2image 或 PyPDF2 + Pillow)
-    DOCX → PDF   (python-docx + reportlab)
+    DOCX → PDF   (LibreOffice 或 reportlab 回退)
     DOCX → TXT   (python-docx)
     DOCX → HTML  (python-docx)
+    DOC  → DOCX  (LibreOffice)
     TXT  → PDF   (reportlab)
-    MD   → PDF   (reportlab)
+    TXT  → DOCX  (python-docx)
+    TXT  → MD    (直接复制)
+    TXT  → HTML  (简单包装)
+    MD   → PDF   (markdown + weasyprint)
     MD   → HTML  (markdown)
     HTML → PDF   (weasyprint)
-    EPUB → TXT   (ebooklib)
+    HTML → TXT   (beautifulsoup4)
+    EPUB → TXT   (ebooklib + beautifulsoup4)
+    RTF  → TXT   (stripper)
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import shutil
+import subprocess
 from typing import Callable
 
 logger = logging.getLogger(__name__)
+
+
+def _find_executable(*names: str) -> str | None:
+    """在 PATH 和常见 Windows 安装路径中查找可执行文件。"""
+    for name in names:
+        path = shutil.which(name)
+        if path:
+            return path
+
+    # Windows 常见安装路径
+    win_paths = {
+        "soffice": [
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+        ],
+        "libreoffice": [
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+        ],
+    }
+
+    for name in names:
+        for p in win_paths.get(name, []):
+            if os.path.exists(p):
+                return p
+
+    return None
 
 
 def convert_document(
@@ -44,16 +78,19 @@ def convert_document(
         ("doc", "docx"): _doc_to_docx,
         ("txt", "pdf"): _txt_to_pdf,
         ("txt", "docx"): _txt_to_docx,
+        ("txt", "md"): _txt_to_md,
+        ("txt", "html"): _txt_to_html,
         ("md", "pdf"): _md_to_pdf,
         ("md", "html"): _md_to_html,
         ("html", "pdf"): _html_to_pdf,
+        ("html", "txt"): _html_to_txt,
         ("epub", "txt"): _epub_to_txt,
         ("rtf", "txt"): _rtf_to_txt,
     }
 
     handler = handlers.get(key)
     if handler is None:
-        raise ValueError(f"不支持的文档转换: {src_fmt} → {dst_fmt}")
+        raise ValueError(f"不支持的文档转换: {src_fmt} -> {dst_fmt}")
 
     handler(input_path, output_path)
     if progress_callback:
@@ -68,7 +105,7 @@ def _pdf_to_docx(input_path: str, output_path: str) -> None:
     cv = Converter(input_path)
     cv.convert(output_path)
     cv.close()
-    logger.info("PDF → DOCX: %s", output_path)
+    logger.info("PDF -> DOCX: %s", output_path)
 
 
 # ============================================================================
@@ -84,7 +121,7 @@ def _pdf_to_txt(input_path: str, output_path: str) -> None:
             lines.append(text)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n\n".join(lines))
-    logger.info("PDF → TXT: %s", output_path)
+    logger.info("PDF -> TXT: %s", output_path)
 
 
 # ============================================================================
@@ -93,39 +130,32 @@ def _pdf_to_txt(input_path: str, output_path: str) -> None:
 def _pdf_to_image(input_path: str, output_path: str) -> None:
     from PyPDF2 import PdfReader
     from PIL import Image, ImageDraw, ImageFont
-    import io
 
     reader = PdfReader(input_path)
     images: list[Image.Image] = []
 
     for page in reader.pages:
         text = page.extract_text() or ""
-        # 创建白色画布
         img = Image.new("RGB", (800, 1100), "white")
         draw = ImageDraw.Draw(img)
-
-        # 使用默认字体
         try:
             font = ImageFont.truetype("arial.ttf", 14)
         except Exception:
             font = ImageFont.load_default()
 
-        # 简单文本渲染
         y = 50
         for line in text.split("\n"):
             if y > 1050:
                 break
             draw.text((50, y), line, fill="black", font=font)
             y += 20
-
         images.append(img)
 
     if len(images) == 1:
         images[0].save(output_path)
     else:
-        # 多页保存为第一个页面（也可串联输出）
         images[0].save(output_path, save_all=True, append_images=images[1:])
-    logger.info("PDF → Image: %s", output_path)
+    logger.info("PDF -> Image: %s", output_path)
 
 
 # ============================================================================
@@ -136,14 +166,12 @@ def _docx_to_pdf(input_path: str, output_path: str) -> None:
     if _try_libreoffice(input_path, output_path, "pdf"):
         return
 
-    # 回退：python-docx + reportlab
     from docx import Document
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 
     doc = Document(input_path)
-
     pdf_doc = SimpleDocTemplate(output_path, pagesize=A4)
     styles = getSampleStyleSheet()
     story: list = []
@@ -156,12 +184,11 @@ def _docx_to_pdf(input_path: str, output_path: str) -> None:
         try:
             story.append(Paragraph(text, styles["Normal"]))
         except Exception:
-            # 如果 text 含非法 XML 字符，用 pre 标签包裹
             safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             story.append(Paragraph(safe, styles["Normal"]))
 
     pdf_doc.build(story)
-    logger.info("DOCX → PDF (reportlab): %s", output_path)
+    logger.info("DOCX -> PDF (reportlab): %s", output_path)
 
 
 # ============================================================================
@@ -175,7 +202,7 @@ def _docx_to_txt(input_path: str, output_path: str) -> None:
         lines.append(para.text)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
-    logger.info("DOCX → TXT: %s", output_path)
+    logger.info("DOCX -> TXT: %s", output_path)
 
 
 # ============================================================================
@@ -189,11 +216,12 @@ def _docx_to_html(input_path: str, output_path: str) -> None:
         text = para.text
         style = para.style.name if para.style else "Normal"
         tag = "h1" if "Heading 1" in style else ("h2" if "Heading 2" in style else "p")
-        parts.append(f"<{tag}>{text}</{tag}>")
+        safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        parts.append(f"<{tag}>{safe}</{tag}>")
     parts.append("</body></html>")
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(parts))
-    logger.info("DOCX → HTML: %s", output_path)
+    logger.info("DOCX -> HTML: %s", output_path)
 
 
 # ============================================================================
@@ -203,7 +231,7 @@ def _doc_to_docx(input_path: str, output_path: str) -> None:
     """DOC → DOCX：通过 LibreOffice 转换。"""
     if _try_libreoffice(input_path, output_path, "docx"):
         return
-    raise RuntimeError("DOC → DOCX 需要安装 LibreOffice。")
+    raise RuntimeError("DOC -> DOCX 需要安装 LibreOffice (soffice)。")
 
 
 # ============================================================================
@@ -229,7 +257,7 @@ def _txt_to_pdf(input_path: str, output_path: str) -> None:
             story.append(Paragraph(safe, styles["Normal"]))
 
     pdf_doc.build(story)
-    logger.info("TXT → PDF: %s", output_path)
+    logger.info("TXT -> PDF: %s", output_path)
 
 
 # ============================================================================
@@ -237,8 +265,7 @@ def _txt_to_pdf(input_path: str, output_path: str) -> None:
 # ============================================================================
 def _txt_to_docx(input_path: str, output_path: str) -> None:
     from docx import Document
-    from docx.shared import Pt, Inches
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Pt
 
     with open(input_path, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
@@ -246,8 +273,6 @@ def _txt_to_docx(input_path: str, output_path: str) -> None:
     doc = Document()
     style = doc.styles["Normal"]
     style.font.size = Pt(11)
-    style.font.name = "Calibri"
-    style.paragraph_format.space_after = Pt(6)
 
     for line in content.split("\n"):
         if not line.strip():
@@ -256,7 +281,41 @@ def _txt_to_docx(input_path: str, output_path: str) -> None:
             doc.add_paragraph(line)
 
     doc.save(output_path)
-    logger.info("TXT → DOCX: %s", output_path)
+    logger.info("TXT -> DOCX: %s", output_path)
+
+
+# ============================================================================
+#  TXT → MD (直接复制内容)
+# ============================================================================
+def _txt_to_md(input_path: str, output_path: str) -> None:
+    import shutil as su
+    su.copy2(input_path, output_path)
+    logger.info("TXT -> MD: %s", output_path)
+
+
+# ============================================================================
+#  TXT → HTML (简单包装)
+# ============================================================================
+def _txt_to_html(input_path: str, output_path: str) -> None:
+    with open(input_path, "r", encoding="utf-8", errors="replace") as f:
+        content = f.read()
+
+    # 转义 HTML 特殊字符
+    safe = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    # 换行转 <br>
+    html_body = safe.replace("\n", "<br>\n")
+
+    html_doc = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>Converted Text</title></head>
+<body>
+<pre style="white-space: pre-wrap; word-wrap: break-word;">{safe}</pre>
+</body>
+</html>"""
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(html_doc)
+    logger.info("TXT -> HTML: %s", output_path)
 
 
 # ============================================================================
@@ -278,12 +337,15 @@ body {{ font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 40
 code {{ background: #f4f4f4; padding: 2px 6px; border-radius: 4px; }}
 pre {{ background: #f4f4f4; padding: 16px; border-radius: 8px; overflow-x: auto; }}
 h1, h2, h3 {{ color: #1a1a1a; }}
+table {{ border-collapse: collapse; width: 100%; }}
+th, td {{ border: 1px solid #ddd; padding: 8px; }}
+th {{ background: #f5f5f5; }}
 </style></head><body>{html_body}</body></html>"""
 
         HTML(string=html_doc).write_pdf(output_path)
-        logger.info("MD → PDF (weasyprint): %s", output_path)
-    except ImportError:
-        raise RuntimeError("MD → PDF 需要安装 weasyprint。")
+        logger.info("MD -> PDF (weasyprint): %s", output_path)
+    except ImportError as e:
+        raise RuntimeError(f"MD -> PDF 需要安装 markdown 和 weasyprint: {e}")
 
 
 # ============================================================================
@@ -303,13 +365,14 @@ def _md_to_html(input_path: str, output_path: str) -> None:
 body {{ font-family: 'Segoe UI', Arial, sans-serif; max-width: 860px; margin: 40px auto; padding: 20px; line-height: 1.7; color: #333; }}
 code {{ background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }}
 pre {{ background: #1e1e2e; color: #cdd6f4; padding: 20px; border-radius: 10px; overflow-x: auto; }}
-table {{ border-collapse: collapse; width: 100%; }} th, td {{ border: 1px solid #ddd; padding: 10px; text-align: left; }}
+table {{ border-collapse: collapse; width: 100%; }}
+th, td {{ border: 1px solid #ddd; padding: 10px; text-align: left; }}
 th {{ background: #f5f5f5; }}
 </style></head><body>{html_body}</body></html>"""
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html_doc)
-    logger.info("MD → HTML: %s", output_path)
+    logger.info("MD -> HTML: %s", output_path)
 
 
 # ============================================================================
@@ -318,7 +381,31 @@ th {{ background: #f5f5f5; }}
 def _html_to_pdf(input_path: str, output_path: str) -> None:
     from weasyprint import HTML
     HTML(filename=input_path).write_pdf(output_path)
-    logger.info("HTML → PDF: %s", output_path)
+    logger.info("HTML -> PDF: %s", output_path)
+
+
+# ============================================================================
+#  HTML → TXT
+# ============================================================================
+def _html_to_txt(input_path: str, output_path: str) -> None:
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        raise RuntimeError("HTML -> TXT 需要安装 beautifulsoup4")
+
+    with open(input_path, "r", encoding="utf-8", errors="replace") as f:
+        html = f.read()
+    soup = BeautifulSoup(html, "html.parser")
+    # 移除 script 和 style 标签
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+    text = soup.get_text(separator="\n")
+    # 清理多余空行
+    lines = [line.strip() for line in text.splitlines()]
+    text = "\n".join(line for line in lines if line)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(text)
+    logger.info("HTML -> TXT: %s", output_path)
 
 
 # ============================================================================
@@ -328,33 +415,39 @@ def _epub_to_txt(input_path: str, output_path: str) -> None:
     try:
         from ebooklib import epub
         from bs4 import BeautifulSoup
-
-        book = epub.read_epub(input_path)
-        lines: list[str] = []
-        for item in book.get_items_of_type(9):  # ITEM_DOCUMENT
-            soup = BeautifulSoup(item.get_body_content(), "html.parser")
-            lines.append(soup.get_text())
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write("\n\n".join(lines))
-        logger.info("EPUB → TXT: %s", output_path)
     except ImportError:
-        raise RuntimeError("EPUB → TXT 需要安装 ebooklib 和 beautifulsoup4。")
+        raise RuntimeError("EPUB -> TXT 需要安装 ebooklib 和 beautifulsoup4")
+
+    book = epub.read_epub(input_path)
+    lines: list[str] = []
+    for item in book.get_items_of_type(9):  # ITEM_DOCUMENT
+        soup = BeautifulSoup(item.get_body_content(), "html.parser")
+        lines.append(soup.get_text())
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("\n\n".join(lines))
+    logger.info("EPUB -> TXT: %s", output_path)
 
 
 # ============================================================================
 #  RTF → TXT
 # ============================================================================
 def _rtf_to_txt(input_path: str, output_path: str) -> None:
-    """RTF → TXT：简单提取（生产环境建议用 pypandoc）。"""
-    import re
-    with open(input_path, "r", encoding="utf-8", errors="replace") as f:
-        content = f.read()
-    # 简单去除 RTF 控制字
-    text = re.sub(r"[\\{].*?[\\}]", " ", content)
-    text = re.sub(r"\s+", " ", text).strip()
+    """RTF → TXT：优先用 striprtf，回退到正则。"""
+    try:
+        from striprtf.striprtf import rtf_to_text
+        with open(input_path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        text = rtf_to_text(content)
+    except ImportError:
+        import re
+        with open(input_path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        text = re.sub(r"[\\{].*?[\\}]", " ", content)
+        text = re.sub(r"\s+", " ", text).strip()
+
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(text)
-    logger.info("RTF → TXT (简易): %s", output_path)
+    logger.info("RTF -> TXT: %s", output_path)
 
 
 # ============================================================================
@@ -362,12 +455,9 @@ def _rtf_to_txt(input_path: str, output_path: str) -> None:
 # ============================================================================
 def _try_libreoffice(input_path: str, output_path: str, target_fmt: str) -> bool:
     """尝试用 LibreOffice headless 模式转换文档。"""
-    import shutil
-    import subprocess
-
-    lo = shutil.which("libreoffice") or shutil.which("soffice")
+    lo = _find_executable("soffice", "libreoffice")
     if lo is None:
-        logger.warning("未找到 LibreOffice，无法进行 %s 转换", target_fmt)
+        logger.warning("未找到 LibreOffice (soffice)，无法进行 %s 转换", target_fmt)
         return False
 
     out_dir = os.path.dirname(output_path) or "."
@@ -380,10 +470,12 @@ def _try_libreoffice(input_path: str, output_path: str, target_fmt: str) -> bool
         # LibreOffice 会在 out_dir 下以原名 + .target_fmt 输出
         lo_output = os.path.join(out_dir,
             os.path.splitext(os.path.basename(input_path))[0] + "." + target_fmt)
-        if os.path.exists(lo_output) and lo_output != output_path:
-            os.replace(lo_output, output_path)
-        logger.info("%s → %s (LibreOffice)", input_path, target_fmt.upper())
-        return True
+        if os.path.exists(lo_output):
+            if lo_output != output_path:
+                os.replace(lo_output, output_path)
+            logger.info("%s -> %s (LibreOffice)", input_path, target_fmt.upper())
+            return True
+        return False
     except Exception as exc:
         logger.warning("LibreOffice 转换失败: %s", exc)
         return False
