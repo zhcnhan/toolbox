@@ -206,6 +206,26 @@
 
 ---
 
+## @react-three/rapier
+
+- **许可证**: MIT
+- **项目地址**: https://github.com/pmndrs/react-three-rapier
+- **版权**: © Paul Henschel
+- **用途**: 3D 物理引擎，驱动右下角互动小猫的碰撞、弹跳和拖拽物理效果
+
+---
+
+## Rapier (Rust physics engine)
+
+- **许可证**: Apache-2.0
+- **项目地址**: https://rapier.rs/
+- **版权**: © Dimforge
+- **用途**: @react-three/rapier 的底层 WASM 物理引擎
+
+> Rapier 在 Apache-2.0 许可下发布。本项目通过 WASM 模块使用 Rapier，不修改其源代码。
+
+---
+
 ## LibreOffice
 
 - **许可证**: MPL-2.0
@@ -260,10 +280,10 @@
 
 | 许可证类型 | 组件 |
 |-----------|------|
-| MIT | FastAPI, PyYAML, xmltodict, tomli/tomli-w, pydub, pdf2docx, python-docx, BeautifulSoup4 |
+| MIT | FastAPI, PyYAML, xmltodict, tomli/tomli-w, pydub, pdf2docx, python-docx, BeautifulSoup4, @react-three/rapier |
 | BSD-3-Clause | Uvicorn, PyPDF2, ReportLab, WeasyPrint, Markdown, svglib, rlPyCairo, striprtf |
 | HPND | Pillow |
-| Apache-2.0 | ffmpeg-python |
+| Apache-2.0 | ffmpeg-python, Rapier |
 | LGPL-2.1+ / LGPL-3.0 | GTK3/Cairo/Pango, CairoSVG |
 | MPL-2.0 | LibreOffice |
 | AGPL-3.0 | ebooklib (请注意 AGPL 条款) |

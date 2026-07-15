@@ -29,7 +29,7 @@ Format Converter 是一个**前后端分离**的 Web 格式转换服务，支持
 - **171 条转换路径** — 全部通过自动化测试验证，覆盖所有格式组合
 - **批量处理** — 一次上传多个文件，并行转换
 - **实时进度** — WebSocket 实时推送转换进度
-- **3D 互动人偶** — 页面右下角可点击互动的 3D 角色，支持皮肤切换
+- **3D 互动小猫** — 页面右下角的物理小猫，可拖拽、拍打、甩飞，支持多种表情反馈
 - **一键部署** — Docker Compose 一条命令上线，FFmpeg + LibreOffice + GTK3 全部内置
 - **Auto API Docs** — FastAPI 自动生成 Swagger / ReDoc 文档
 - **内置测试** — 部署后可随时运行测试验证所有转换路径
@@ -240,7 +240,8 @@ apps/format_converter/
 │   │   │   ├── ProgressPanel.jsx   #     进度面板
 │   │   │   ├── LogPanel.jsx        #     日志面板
 │   │   │   ├── DownloadPanel.jsx   #     下载面板
-│   │   │   └── Character3D.jsx     #     3D 人偶
+│   │   │   ├── InteractivePet.jsx  #     3D 互动小猫（物理引擎）
+│   │   │   └── Character3D.jsx     #     3D 人偶（备用皮肤系统）
 │   │   └── index.css               #    Tailwind + 自定义样式
 │   ├── package.json
 │   └── vite.config.js
@@ -261,28 +262,16 @@ apps/format_converter/
 
 ---
 
-## 3D 人偶自定义
+## 3D 互动小猫
 
-页面右下角的 3D 小人偶支持皮肤切换。内置 6 套皮肤：**赛博蓝、霓虹粉、森林绿、日落橙、幽灵白、璀璨金**。
+页面右下角有一只基于物理引擎（Rapier）的 3D 小猫，支持丰富的互动：
 
-### 添加自定义皮肤
+- **拖拽** — 鼠标按住小猫可以拖来拖去
+- **拍打** — 用棍子光标点击小猫，它会 squish 变形并露出疼痛表情
+- **甩飞** — 快速拖动后松手，小猫会被甩飞并撞墙弹回
+- **表情系统** — 小猫会根据互动方式切换表情（开心、疼痛、晕眩、爱心、生气）
 
-编辑 `frontend/src/components/Character3D.jsx`，在 `SKIN_REGISTRY` 中添加：
-
-```js
-'my-skin': {
-  id: 'my-skin',
-  name: '我的皮肤',
-  head: '#ff6b6b',     // 头部颜色
-  body: '#ee5a24',     // 身体颜色
-  limbs: '#d63031',    // 四肢颜色
-  eyes: '#ffffff',     // 眼睛颜色
-  accent: '#fab1a0',   // 装饰色
-  emissive: '#ff6b6b', // 发光色
-},
-```
-
-重新构建前端即可生效（`npm run build`）。
+小猫使用 `@react-three/rapier` 物理引擎实现真实的碰撞和弹跳效果。
 
 ---
 
@@ -346,7 +335,7 @@ Python 3.13 移除了 <code>audioop</code> 模块。项目已在 <code>backend/p
 | 前端框架 | React 18 + Vite 5 | 现代化 SPA |
 | UI 样式 | Tailwind CSS 3 | 工具类优先，深色主题 |
 | 动效 | Framer Motion 11 | 声明式动画 |
-| 3D 渲染 | Three.js + React Three Fiber | WebGL 3D 人偶 |
+| 3D 渲染 | Three.js + React Three Fiber + Rapier | WebGL 3D 互动小猫（物理引擎） |
 | 后端框架 | FastAPI | 异步高性能 Python Web 框架 |
 | 文档转换 | pdf2docx · python-docx · PyPDF2 · weasyprint · markdown · ebooklib · striprtf | 8 种文档格式互转 |
 | 音频转换 | pydub + ffmpeg | 9 种音频格式互转 |
