@@ -99,6 +99,7 @@ export default function FormatSelector({
             options={inputFormats}
             onChange={onSourceChange}
             disabled={disabled}
+            disabledValues={[targetFmt]}
           />
         </div>
 

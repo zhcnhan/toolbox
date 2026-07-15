@@ -7,6 +7,21 @@ __pycache__/
 env/
 *.egg-info/
 
+# Desktop app (not needed in web Docker image)
+src/
+
+# Tests & resources
+test_resources/
+resources/
+
+# Dev scripts
+dev.bat
+dev.sh
+
+# Docs (not needed in image)
+DEPLOY.md
+README.md
+
 # IDE
 .vscode/
 .idea/

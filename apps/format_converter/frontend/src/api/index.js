@@ -1,16 +1,31 @@
+import { addLog } from '../logStore'
+
 const BASE = '/api'
 
 async function request(path, options = {}) {
   const url = `${BASE}${path}`
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options,
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || `HTTP ${res.status}`)
+  const method = options.method || 'GET'
+  addLog('info', 'api', `\u2192 ${method} ${path}`)
+  try {
+    const res = await fetch(url, {
+      headers: { 'Content-Type': 'application/json', ...options.headers },
+      ...options,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      const msg = err.detail || res.statusText || `HTTP ${res.status}`
+      addLog('error', 'api', `\u2717 ${method} ${path} \u2192 ${res.status} ${msg}`)
+      throw new Error(msg)
+    }
+    const data = await res.json()
+    addLog('success', 'api', `\u2713 ${method} ${path} \u2192 ${res.status}`)
+    return data
+  } catch (err) {
+    if (!err.message?.includes('\u2717')) {
+      addLog('error', 'api', `\u2717 ${method} ${path} \u2192 ${err.message}`)
+    }
+    throw err
   }
-  return res.json()
 }
 
 export const api = {
@@ -25,22 +40,36 @@ export const api = {
 
   /** 上传文件 */
   uploadFiles: async (files) => {
+    addLog('info', 'api', `\u2192 POST /upload (${files.length} 个文件)`)
     const form = new FormData()
     files.forEach((f) => form.append('files', f))
-    const res = await fetch(`${BASE}/upload`, { method: 'POST', body: form })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }))
-      throw new Error(err.detail || `HTTP ${res.status}`)
+    try {
+      const res = await fetch(`${BASE}/upload`, { method: 'POST', body: form })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }))
+        const msg = err.detail || `HTTP ${res.status}`
+        addLog('error', 'api', `\u2717 POST /upload \u2192 ${res.status} ${msg}`)
+        throw new Error(msg)
+      }
+      const data = await res.json()
+      addLog('success', 'api', `\u2713 POST /upload \u2192 ${data.files?.length || 0} 个文件已上传`)
+      return data
+    } catch (err) {
+      if (!err.message?.includes('\u2717')) {
+        addLog('error', 'api', `\u2717 POST /upload \u2192 ${err.message}`)
+      }
+      throw err
     }
-    return res.json()
   },
 
   /** 启动转换 */
-  startConversion: (data) =>
-    request('/convert', {
+  startConversion: (data) => {
+    addLog('info', 'api', `\u2192 POST /convert (${data.source_fmt} \u2192 ${data.target_fmt}, ${data.files?.length || 0} 文件)`)
+    return request('/convert', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    })
+  },
 
   /** 查询任务状态 */
   getTask: (taskId) => request(`/task/${taskId}`),

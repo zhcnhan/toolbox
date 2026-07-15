@@ -94,8 +94,40 @@ def _get_document():
 Converter = Callable[..., Any]
 
 
+def _dict_to_csv_rows(data: dict) -> list[dict[str, Any]]:
+    """Convert arbitrary dict to flat CSV rows.
+
+    Strategy:
+      1. If any value is a list[dict], use the largest such list as records.
+      2. Otherwise, flatten top-level keys as key-value rows.
+    """
+    # Find list-of-dict values
+    lists = {k: v for k, v in data.items() if isinstance(v, list) and v and isinstance(v[0], dict)}
+    if lists:
+        # Use the longest list
+        best_key = max(lists, key=lambda k: len(lists[k]))
+        return lists[best_key]
+
+    # Flatten: one row per top-level key
+    rows: list[dict[str, Any]] = []
+    for key, val in data.items():
+        if isinstance(val, dict):
+            row = {"key": key, **{f"val_{k}": v for k, v in val.items()}}
+        elif isinstance(val, list):
+            row = {"key": key, "values": str(val)}
+        else:
+            row = {"key": key, "value": str(val)}
+        rows.append(row)
+    return rows
+
+
 def _convert_data(input_path: str, src_fmt: str, dst_fmt: str, output_path: str) -> None:
-    """通用数据格式转换管道：load → dump"""
+    """通用数据格式转换管道：load → marshal → dump
+
+    自动处理 list/dict 结构互转：
+      - csv (list[dict]) ↔ dict 型格式（xml/toml/json/yaml）
+      - 多根节点自动包裹
+    """
     loaders: dict[str, Callable[[str], Any]] = {
         "json": json_loads, "yaml": yaml_loads,
         "csv": csv_loads, "xml": xml_loads, "toml": toml_loads,
@@ -107,6 +139,28 @@ def _convert_data(input_path: str, src_fmt: str, dst_fmt: str, output_path: str)
 
     raw = read_file(input_path)
     data = loaders[src_fmt](raw)
+
+    # ── Universal marshaling between list[dict] and dict ──
+    # CSV produces list[dict]; XML/TOML expect dict
+    if isinstance(data, list) and dst_fmt in ("xml", "toml"):
+        data = {"root": {"record": data}}
+
+    # dict → CSV: search for a list of records inside the dict,
+    # or flatten top-level keys as key-value rows.
+    if isinstance(data, dict) and dst_fmt == "csv":
+        data = _dict_to_csv_rows(data)
+
+    # dict → XML: xmltodict requires single root. If dict has multiple
+    # top-level keys (e.g. json with {"a":1,"b":2}), wrap them.
+    if isinstance(data, dict) and dst_fmt == "xml" and len(data) != 1:
+        data = {"document": data}
+
+    # YAML can produce None, int, str, list — normalize to dict
+    if isinstance(data, (type(None), int, float, str, bool)):
+        data = {"value": data}
+    if isinstance(data, list) and dst_fmt not in ("json", "yaml", "csv"):
+        data = {"items": {"item": data}}
+
     result = dumpers[dst_fmt](data)
     write_file(output_path, result)
 

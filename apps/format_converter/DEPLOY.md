@@ -127,15 +127,17 @@ docker exec format-converter rm -rf /tmp/format_converter_uploads/*
 # Ubuntu / Debian
 sudo apt update
 sudo apt install -y python3.12 python3.12-venv python3-pip \
-    ffmpeg nodejs npm
+    ffmpeg nodejs npm libreoffice
 
 # CentOS / RHEL
 sudo dnf install -y python3.12 python3.12-pip \
-    ffmpeg nodejs npm
+    ffmpeg nodejs npm libreoffice
 
 # macOS
-brew install python@3.12 ffmpeg node
+brew install python@3.12 ffmpeg node libreoffice
 ```
+
+> **LibreOffice** 是 →DOC 路径的必要依赖，Docker 镜像已内置。
 
 ### 2. 构建前端
 

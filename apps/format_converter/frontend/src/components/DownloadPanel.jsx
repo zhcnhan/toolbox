@@ -1,5 +1,17 @@
 import { motion } from 'framer-motion'
 import { api } from '../api'
+import { addLog } from '../logStore'
+
+/** Trigger a file download without opening a new window */
+function triggerDownload(url, filename) {
+  const a = document.createElement('a')
+  a.href = url
+  if (filename) a.download = filename
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
 
 export default function DownloadPanel({ task, taskId, onNewTask }) {
   if (!task) return null
@@ -8,11 +20,12 @@ export default function DownloadPanel({ task, taskId, onNewTask }) {
   const failedResults = (task.results || []).filter((r) => !r.success)
 
   const handleDownloadZip = () => {
-    window.open(api.downloadZip(taskId), '_blank')
+    addLog('info', 'system', '开始打包下载...')
+    triggerDownload(api.downloadZip(taskId))
   }
 
   const handleDownloadFile = (filename) => {
-    window.open(api.getDownloadUrl(taskId, filename), '_blank')
+    triggerDownload(api.getDownloadUrl(taskId, filename), filename)
   }
 
   return (

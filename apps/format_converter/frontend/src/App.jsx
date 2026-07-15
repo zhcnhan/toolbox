@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react
 import { AnimatePresence, motion } from 'framer-motion'
 import { Toaster, toast } from 'react-hot-toast'
 import { api } from './api'
+import { addLog } from './logStore'
 import Navbar from './components/Navbar'
 import TabNav from './components/TabNav'
 import FormatSelector from './components/FormatSelector'
@@ -10,6 +11,7 @@ import FileList from './components/FileList'
 import ProgressPanel from './components/ProgressPanel'
 import DownloadPanel from './components/DownloadPanel'
 import LogPanel from './components/LogPanel'
+import GlobalLogPanel from './components/GlobalLogPanel'
 
 const InteractivePet = React.lazy(() => import('./components/InteractivePet'))
 
@@ -51,11 +53,16 @@ export default function App() {
   const [files, setFiles] = useState([])
   const [taskId, setTaskId] = useState(null)
   const [taskStatus, setTaskStatus] = useState(null)
+  const [isUploading, setIsUploading] = useState(false)
   const pollRef = useRef(null)
+  const lastLogCount = useRef(0)
 
   useEffect(() => {
     api.getFormats()
-      .then(setFormats)
+      .then((data) => {
+        addLog('success', 'system', `格式列表加载完成 — ${Object.keys(data.categories || {}).length} 个类别`)
+        setFormats(data)
+      })
       .catch(() => toast.error('无法获取格式列表'))
   }, [])
 
@@ -77,11 +84,22 @@ export default function App() {
       try {
         const status = await api.getTask(id)
         setTaskStatus(status)
+        // Emit new backend logs to global log panel
+        if (status.logs && status.logs.length > lastLogCount.current) {
+          const newLogs = status.logs.slice(lastLogCount.current)
+          newLogs.forEach((msg) => addLog('info', 'backend', msg))
+          lastLogCount.current = status.logs.length
+        }
         if (['done', 'failed', 'cancelled'].includes(status.status)) {
           clearInterval(pollRef.current)
           pollRef.current = null
           if (status.status === 'done') {
+            addLog('success', 'backend', `任务完成 — 成功 ${status.total - status.failed}/${status.total}`)
             toast.success(`转换完成！成功 ${status.total - status.failed}/${status.total} 个文件`)
+          } else if (status.status === 'failed') {
+            addLog('error', 'backend', `任务失败 — ${status.failed}/${status.total} 个文件失败`)
+          } else {
+            addLog('warn', 'backend', '任务已取消')
           }
         }
       } catch {
@@ -115,6 +133,9 @@ export default function App() {
     if (sourceFmt === targetFmt) { toast.error('源格式和目标格式不能相同'); return }
 
     try {
+      lastLogCount.current = 0
+      setIsUploading(true)
+      addLog('info', 'system', `开始转换 — ${sourceFmt} \u2192 ${targetFmt}, ${files.length} 个文件`)
       const uploadResult = await api.uploadFiles(files.map((f) => f.file))
       const tempPaths = uploadResult.files.map((f) => f.temp_path)
       const originalNames = uploadResult.files.map((f) => f.original_name)
@@ -126,9 +147,11 @@ export default function App() {
         original_names: originalNames,
       })
 
+      setIsUploading(false)
       setTaskId(result.task_id)
       startPolling(result.task_id)
     } catch (err) {
+      setIsUploading(false)
       toast.error(`启动转换失败: ${err.message}`)
     }
   }, [files, sourceFmt, targetFmt, startPolling])
@@ -137,6 +160,12 @@ export default function App() {
     if (taskId) {
       await api.cancelTask(taskId)
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+      // Fetch updated status so UI reflects cancelled state immediately
+      try {
+        const status = await api.getTask(taskId)
+        setTaskStatus(status)
+        addLog('warn', 'system', '任务已取消')
+      } catch { /* ignore */ }
     }
   }, [taskId])
 
@@ -235,14 +264,14 @@ export default function App() {
               targetFmt={targetFmt}
               onSourceChange={setSourceFmt}
               onTargetChange={setTargetFmt}
-              disabled={isConverting || isDone}
+              disabled={isConverting || isDone || isUploading}
             />
 
             {/* Drop zone */}
             {!isDone && (
               <DropZone
                 onFilesAdded={handleFilesAdded}
-                disabled={isConverting}
+                disabled={isConverting || isUploading}
               />
             )}
 
@@ -251,12 +280,12 @@ export default function App() {
               files={files}
               onRemove={handleRemoveFile}
               onClear={handleClearFiles}
-              disabled={isConverting}
+              disabled={isConverting || isUploading}
               results={taskStatus?.results}
             />
 
             {/* Convert button */}
-            {!isDone && files.length > 0 && !isConverting && (
+            {!isDone && files.length > 0 && !isConverting && !isUploading && (
               <motion.div
                 className="flex justify-center mt-6"
                 initial={{ opacity: 0, y: 10 }}
@@ -271,6 +300,32 @@ export default function App() {
                   </svg>
                   开始转换 {files.length} 个文件
                 </button>
+              </motion.div>
+            )}
+
+            {/* Upload progress */}
+            {isUploading && (
+              <motion.div
+                className="glass p-6 mb-6"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-6 h-6 border-2 border-accent-blue/30 border-t-accent-blue rounded-full animate-spin" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-text-primary">上传文件中...</h3>
+                    <p className="text-xs text-text-muted mt-0.5">正在上传 {files.length} 个文件到服务器</p>
+                  </div>
+                </div>
+                {/* Indeterminate progress bar */}
+                <div className="relative h-2.5 bg-surface-100 rounded-full overflow-hidden">
+                  <motion.div
+                    className="absolute inset-y-0 progress-gradient rounded-full"
+                    style={{ width: '40%' }}
+                    animate={{ x: ['-100%', '250%'] }}
+                    transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                </div>
               </motion.div>
             )}
 
@@ -305,6 +360,9 @@ export default function App() {
           <InteractivePet />
         </ErrorBoundary>
       </Suspense>
+
+      {/* Global log panel — monitors all conversion backend output */}
+      <GlobalLogPanel />
 
       {/* Footer */}
       <footer className="text-center py-8 text-text-muted text-sm">

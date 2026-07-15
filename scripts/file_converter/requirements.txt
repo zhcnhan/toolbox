@@ -1,0 +1,5 @@
+# 核心依赖
+pyyaml>=6.0
+xmltodict>=0.13
+tomli>=2.0; python_version < "3.11"
+tomli-w>=1.0

@@ -106,10 +106,12 @@ CATEGORY_FILTERS: dict[str, str] = {
 # 每个类别可用的输出格式
 OUTPUT_FORMATS: dict[str, list[str]] = {
     "data": ["json", "yaml", "csv", "xml", "toml"],
-    "audio": ["mp3", "wav", "flac", "ogg", "aac", "m4a", "opus"],
-    "video": ["mp4", "avi", "mkv", "mov", "webm"],
+    # WMA encoding is not supported by most ffmpeg builds (proprietary codec).
+    # WMA input remains available for decoding.
+    "audio": ["mp3", "wav", "flac", "ogg", "aac", "m4a", "opus", "aiff"],
+    "video": ["mp4", "avi", "mkv", "mov", "webm", "flv", "wmv"],
     "image": ["jpg", "png", "webp", "bmp", "gif", "ico", "tiff"],
-    "document": ["pdf", "docx", "txt", "md", "html", "rtf"],
+    "document": ["pdf", "docx", "doc", "txt", "md", "html", "rtf", "epub"],
 }
 
 # 每个类别可用的输入格式（通常与 _EXT_TO_FMT 对应）

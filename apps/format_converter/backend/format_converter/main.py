@@ -168,13 +168,23 @@ async def list_category_formats(category: str):
 @app.post("/api/upload")
 async def upload_files(files: list[UploadFile] = File(...)):
     """上传文件并返回临时路径列表。"""
+    MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
     results: list[dict] = []
     for f in files:
         safe_name = f"{uuid.uuid4().hex}_{f.filename or 'unnamed'}"
         dest = UPLOAD_DIR / safe_name
+        total_written = 0
         with open(dest, "wb") as buffer:
-            content = await f.read()
-            buffer.write(content)
+            while True:
+                chunk = await f.read(1024 * 1024)  # 1MB chunks
+                if not chunk:
+                    break
+                total_written += len(chunk)
+                if total_written > MAX_FILE_SIZE:
+                    buffer.close()
+                    os.unlink(dest)
+                    raise HTTPException(status_code=413, detail=f"文件 {f.filename} 超过 500MB 大小限制")
+                buffer.write(chunk)
         fmt = detect_format(str(dest))
         category = detect_category(fmt) if fmt else None
         results.append({
@@ -190,6 +200,7 @@ async def upload_files(files: list[UploadFile] = File(...)):
 @app.post("/api/convert")
 async def start_conversion(req: ConversionRequest):
     """启动批量转换任务。"""
+    _cleanup_old_tasks()  # Clean up old tasks before creating new one
     task_id = uuid.uuid4().hex[:12]
 
     # 验证格式
@@ -283,33 +294,42 @@ async def download_file(task_id: str, filename: str):
         task = _tasks.get(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
-    filepath = Path(task["output_dir"]) / filename
+    # Prevent path traversal — resolve and verify path stays within output_dir
+    out_dir = Path(task["output_dir"]).resolve()
+    filepath = (out_dir / filename).resolve()
+    if not str(filepath).startswith(str(out_dir)):
+        raise HTTPException(status_code=403, detail="非法路径")
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="文件不存在")
     return FileResponse(
         path=str(filepath),
-        filename=filename,
+        filename=filepath.name,
         media_type="application/octet-stream",
     )
 
 
-@app.post("/api/download-zip/{task_id}")
+@app.get("/api/download-zip/{task_id}")
 async def download_zip(task_id: str):
     """打包下载所有转换结果。"""
     with _tasks_lock:
         task = _tasks.get(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
+    if task["status"] not in (TASK_STATUS_DONE, TASK_STATUS_FAILED):
+        raise HTTPException(status_code=400, detail="任务尚未完成")
 
     out_dir = Path(task["output_dir"])
     zip_path = out_dir.parent / f"{task_id}_results.zip"
 
     if not zip_path.exists():
         import zipfile
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        # Write to temp file first, then rename for atomicity
+        tmp_zip = zip_path.with_suffix(".tmp")
+        with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
             for f in out_dir.iterdir():
                 if f.is_file():
                     zf.write(f, f.name)
+        tmp_zip.rename(zip_path)
 
     return FileResponse(
         path=str(zip_path),
@@ -332,7 +352,9 @@ def _run_conversion(
 ) -> None:
     """在后台线程中顺序执行批量转换。"""
     with _tasks_lock:
-        task = _tasks[task_id]
+        task = _tasks.get(task_id)
+        if not task:
+            return
         task["status"] = TASK_STATUS_RUNNING
 
     total = len(file_paths)
@@ -352,7 +374,9 @@ def _run_conversion(
             cat_detected = detect_category(detected) if detected else None
             cat_expected = detect_category(source_fmt)
             if cat_detected != cat_expected:
-                _add_result(task, original, None, False, f"文件格式不匹配: 期望 {source_fmt}, 检测到 {detected}")
+                with _tasks_lock:
+                    _add_result(task, original, None, False, f"文件格式不匹配: 期望 {source_fmt}, 检测到 {detected}")
+                    _add_log(task, f"  ✗ 跳过: {original} (格式不匹配)")
                 continue
 
         # 生成输出路径
@@ -363,8 +387,13 @@ def _run_conversion(
             task["current_file"] = original
             _add_log(task, f"[{idx + 1}/{total}] 转换中: {original} ({source_fmt} → {target_fmt})")
 
-        # 执行转换
-        result = convert_file(file_path, source_fmt, target_fmt, output_path)
+        # Progress callback — updates overall_progress in real-time
+        def _progress_cb(file_progress, _idx=idx, _total=total):
+            with _tasks_lock:
+                task["overall_progress"] = (_idx + min(file_progress, 0.99)) / _total
+
+        # 执行转换（传入 progress_callback 实现实时进度更新）
+        result = convert_file(file_path, source_fmt, target_fmt, output_path, _progress_cb)
 
         with _tasks_lock:
             task["completed"] += 1
@@ -406,6 +435,53 @@ def _add_log(task: dict, message: str) -> None:
     # 限制日志条数
     if len(task["logs"]) > 500:
         task["logs"] = task["logs"][-500:]
+
+
+def _cleanup_old_tasks(max_age_seconds: int = 3600) -> None:
+    """Remove completed/failed/cancelled tasks older than max_age_seconds.
+    Also deletes their output directories and zip files."""
+    now = time.time()
+    with _tasks_lock:
+        to_remove = [
+            tid for tid, t in _tasks.items()
+            if t["status"] in (TASK_STATUS_DONE, TASK_STATUS_FAILED, TASK_STATUS_CANCELLED)
+            and now - t.get("created_at", 0) > max_age_seconds
+        ]
+        for tid in to_remove:
+            task = _tasks.pop(tid, None)
+            if task:
+                out_dir = Path(task.get("output_dir", ""))
+                if out_dir.exists():
+                    shutil.rmtree(out_dir, ignore_errors=True)
+                zip_path = out_dir.parent / f"{tid}_results.zip"
+                if zip_path.exists():
+                    try:
+                        zip_path.unlink()
+                    except Exception:
+                        pass
+
+
+@app.on_event("startup")
+async def _startup_cleanup():
+    """Clean up stale temp files and old tasks on startup."""
+    # Remove old upload files (older than 1 hour)
+    now = time.time()
+    for f in UPLOAD_DIR.iterdir():
+        try:
+            if f.is_file() and now - f.stat().st_mtime > 3600:
+                f.unlink()
+        except Exception:
+            pass
+    # Remove old output directories
+    for d in OUTPUT_BASE.iterdir():
+        try:
+            if d.is_dir() and now - d.stat().st_mtime > 3600:
+                shutil.rmtree(d, ignore_errors=True)
+            elif d.is_file() and now - d.stat().st_mtime > 3600:
+                d.unlink()
+        except Exception:
+            pass
+    _cleanup_old_tasks(0)  # Clean all old tasks on startup
 
 
 # ============================================================
