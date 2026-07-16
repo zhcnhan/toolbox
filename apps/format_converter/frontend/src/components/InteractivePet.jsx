@@ -68,76 +68,95 @@ const canTexture = createGlowCharTexture('参', '#c084fc')
 // Uses manual GLTFLoader (no Suspense) so PhysicsScene mounts
 // immediately and pointer events are attached right away.
 // ============================================================
+// Module-level model cache — loads ONCE, shared across all renders
+// Starts downloading immediately when the JS chunk is parsed,
+// before React even mounts. Subsequent visits use the cached scene.
+// ============================================================
+let _cachedScene = null
+let _loadPromise = null
+
+function _processModel(gltfScene) {
+  const cloned = gltfScene.clone()
+  cloned.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true
+      child.receiveShadow = true
+    }
+  })
+  const box = new THREE.Box3().setFromObject(cloned)
+  const size = new THREE.Vector3()
+  box.getSize(size)
+  const maxDim = Math.max(size.x, size.y, size.z) || 1
+  const targetScale = 0.5 / maxDim
+
+  const estimate = new THREE.Vector3()
+  box.getCenter(estimate)
+  const v = new THREE.Vector3()
+  cloned.updateWorldMatrix(true, true)
+  const radius = maxDim * 0.3
+  for (let iter = 0; iter < 3; iter++) {
+    const c = new THREE.Vector3()
+    let n = 0
+    cloned.traverse((child) => {
+      if (child.isMesh && child.geometry?.attributes?.position) {
+        const pos = child.geometry.attributes.position
+        const step = Math.max(1, Math.floor(pos.count / 500))
+        for (let i = 0; i < pos.count; i += step) {
+          v.fromBufferAttribute(pos, i)
+          child.localToWorld(v)
+          if (v.distanceTo(estimate) < radius) { c.add(v); n++ }
+        }
+      }
+    })
+    if (n > 0) estimate.copy(c.divideScalar(n))
+  }
+  cloned.scale.setScalar(targetScale)
+  cloned.position.set(
+    -estimate.x * targetScale, -estimate.y * targetScale, -estimate.z * targetScale,
+  )
+  return cloned
+}
+
+function _getOrLoadModel() {
+  if (_cachedScene) return Promise.resolve(_cachedScene)
+  if (_loadPromise) return _loadPromise
+  console.log('[CatModel] Starting model load (singleton)')
+  _loadPromise = new Promise((resolve, reject) => {
+    const loader = new GLTFLoader()
+    loader.load(
+      '/cat_model.glb',
+      (gltf) => {
+        _cachedScene = _processModel(gltf.scene)
+        console.log('[CatModel] Model cached (singleton)')
+        resolve(_cachedScene)
+      },
+      (xhr) => {
+        if (xhr.total) console.log('[CatModel] loading', `${((xhr.loaded / xhr.total) * 100).toFixed(0)}%`)
+      },
+      (err) => { _loadPromise = null; console.error('[CatModel] load error', err); reject(err) },
+    )
+  })
+  return _loadPromise
+}
+
+// Start preloading immediately — model begins downloading as soon as JS is parsed
+_getOrLoadModel()
+
+// ============================================================
+// CatModel — loads external GLB model with holy backlight
+// Uses module-level singleton cache so model is only fetched once
+// ============================================================
 const CatModel = React.forwardRef(function CatModel({ emotion, mouse3D }, ref) {
   const groupRef = useRef()
   const haloRef = useRef()
   const bodyTarget = useRef(new THREE.Vector3(1, 1, 1))
   const squishing = useRef(false)
-  const [modelScene, setModelScene] = useState(null)
+  const [modelScene, setModelScene] = useState(_cachedScene)
 
-  // Load GLB model manually — no Suspense, no ref issues
   useEffect(() => {
-    const loader = new GLTFLoader()
-    loader.load(
-      '/cat_model.glb',
-      (gltf) => {
-        const cloned = gltf.scene.clone()
-        cloned.traverse((child) => {
-          if (child.isMesh) {
-            child.castShadow = true
-            child.receiveShadow = true
-          }
-        })
-        // Normalize: center at vertex centroid (visual center) & scale to ~0.5 unit
-        const box = new THREE.Box3().setFromObject(cloned)
-        const size = new THREE.Vector3()
-        box.getSize(size)
-        const maxDim = Math.max(size.x, size.y, size.z) || 1
-        const targetScale = 0.5 / maxDim
-
-        // Iterative centroid — converges to model's "core", excluding
-        // appendages (tail, ears) that skew the bounding box center
-        const estimate = new THREE.Vector3()
-        box.getCenter(estimate)
-        const v = new THREE.Vector3()
-        cloned.updateWorldMatrix(true, true)
-        const radius = maxDim * 0.3
-        for (let iter = 0; iter < 3; iter++) {
-          const c = new THREE.Vector3()
-          let n = 0
-          cloned.traverse((child) => {
-            if (child.isMesh && child.geometry?.attributes?.position) {
-              const pos = child.geometry.attributes.position
-              const step = Math.max(1, Math.floor(pos.count / 500))
-              for (let i = 0; i < pos.count; i += step) {
-                v.fromBufferAttribute(pos, i)
-                child.localToWorld(v)
-                if (v.distanceTo(estimate) < radius) {
-                  c.add(v)
-                  n++
-                }
-              }
-            }
-          })
-          if (n > 0) estimate.copy(c.divideScalar(n))
-        }
-
-        cloned.scale.setScalar(targetScale)
-        cloned.position.set(
-          -estimate.x * targetScale,
-          -estimate.y * targetScale,
-          -estimate.z * targetScale,
-        )
-        console.log('[CatModel] loaded', { maxDim, targetScale })
-        setModelScene(cloned)
-      },
-      (xhr) => {
-        if (xhr.total) {
-          console.log('[CatModel] loading', `${((xhr.loaded / xhr.total) * 100).toFixed(0)}%`)
-        }
-      },
-      (err) => console.error('[CatModel] load error', err),
-    )
+    let cancelled = false
+    _getOrLoadModel().then((scene) => { if (!cancelled) setModelScene(scene) })
+    return () => { cancelled = true }
   }, [])
 
   React.useImperativeHandle(ref, () => ({
