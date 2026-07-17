@@ -376,8 +376,12 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       e.preventDefault()
       isDragging.current = true
       hasMoved.current = false
-      dragStartPos.current = { x: e.clientX, y: e.clientY }  // 屏幕像素，避開世界坐标差异
+      dragStartPos.current = { x: e.clientX, y: e.clientY }
       dragHistory.current = []
+      // 手机上阻止滚动和选中
+      document.body.style.touchAction = 'none'
+      document.body.style.userSelect = 'none'
+      document.body.style.webkitUserSelect = 'none'
       petMesh.current?.squish?.(0.15)
       document.body.style.cursor = CURSORS.grabbing
     }
@@ -404,10 +408,18 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       mouseWorld.current.copy(wp)
     }
 
+    const _endDrag = () => {
+      document.body.style.touchAction = ''
+      document.body.style.userSelect = ''
+      document.body.style.webkitUserSelect = ''
+      document.body.style.cursor = CURSORS.default
+    }
+
     const onUp = (e) => {
       if (!isDragging.current) return
       isDragging.current = false
       e.stopPropagation()
+      _endDrag()
 
       if (hasMoved.current) {
         // ═══ THROW (拖拽) ═══
@@ -430,7 +442,6 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
         throwingAt.current = performance.now()
         petMesh.current?.reset?.()
         onSpeechRef.current?.('咻—— 🚀')
-        document.body.style.cursor = CURSORS.default
       } else {
         // ═══ TAP → STICK HIT ═══
         const wp = screenToWorld(e.clientX, e.clientY)
@@ -481,7 +492,7 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       isDragging.current = false
       hasMoved.current = false
       dragHistory.current = []
-      document.body.style.cursor = CURSORS.default
+      _endDrag()
       petMesh.current?.reset?.()
     }
 
@@ -622,8 +633,8 @@ export default function InteractivePet() {
     <>
       {/* Full-screen overlay — pointer-events:none so UI below still works */}
       <div
-        className="fixed inset-0 z-40"
-        style={{ pointerEvents: 'none', touchAction: 'none' }}
+        className="fixed inset-0 z-40 select-none"
+        style={{ pointerEvents: 'none' }}
       >
         {/* Speech bubble — positioned near cat (bottom-right) */}
         <AnimatePresence>
