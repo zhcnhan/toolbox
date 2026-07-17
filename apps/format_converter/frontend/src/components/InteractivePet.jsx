@@ -331,8 +331,9 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
 
   // ── drag state (refs — stable across renders) ──
   const isDragging = useRef(false)
+  const dragStartPos = useRef(null) // { x, y } — pointerdown 位置，用于判断是否为拖拽
   const dragHistory = useRef([])    // { t, x, y }[]
-  const hasMoved = useRef(false)
+  const hasMoved = useRef(false)    // 总位移超过阈值才算拖拽（兼容触摸屏噪声）
   const throwingAt = useRef(0)
   // Stable ref to current callbacks so native listeners don't stale
   const onSpeechRef = useRef(onSpeech)
@@ -375,6 +376,7 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       e.preventDefault()
       isDragging.current = true
       hasMoved.current = false
+      dragStartPos.current = { x: wp.x, y: wp.y }
       dragHistory.current = []
       petMesh.current?.squish?.(0.15)
       document.body.style.cursor = CURSORS.grabbing
@@ -387,9 +389,12 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       const wp = screenToWorld(e.clientX, e.clientY)
       if (!wp) return
 
-      const dx = wp.x - (dragHistory.current[0]?.x ?? wp.x)
-      const dy = wp.y - (dragHistory.current[0]?.y ?? wp.y)
-      if (Math.abs(dx) > 0.03 || Math.abs(dy) > 0.03) hasMoved.current = true
+      // 用从按下点到当前点的总位移判断是否拖拽，兼容移动端手指抖动
+      if (dragStartPos.current) {
+        const totalDx = wp.x - dragStartPos.current.x
+        const totalDy = wp.y - dragStartPos.current.y
+        if (Math.hypot(totalDx, totalDy) > 0.08) hasMoved.current = true
+      }
 
       catPos.current.set(wp.x, wp.y, 0)
       catVel.current.set(0, 0, 0)
