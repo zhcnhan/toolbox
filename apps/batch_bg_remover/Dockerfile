@@ -31,8 +31,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 Python 依赖
+# 先装 CPU 版 PyTorch（从官方源，体积比默认小很多）
 COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements.txt
 
 # 复制后端代码
 COPY backend/ /app/

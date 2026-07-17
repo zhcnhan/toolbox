@@ -305,6 +305,23 @@ ls ~/.u2net/
 # 应该有 u2net.onnx 文件（约 176MB）
 ```
 
+### CLIPSeg 提示词分割不可用
+
+CLIPSeg 引擎需要 `transformers` + `torch`，已包含在 `requirements.txt` 中。如果设置页看不到 CLIPSeg 引擎：
+
+```bash
+# 检查是否安装
+python -c "import transformers; import torch; print('OK')"
+
+# 如果未安装
+pip install transformers torch
+
+# GPU 版 PyTorch（NVIDIA 显卡，性能更好）
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+```
+
+> 首次使用 CLIPSeg 会自动下载模型（约 1.5GB），之后缓存复用。
+
 ### 云端引擎报错
 
 - **Gemini 429**：免费额度用完，等待刷新或开启付费
