@@ -475,16 +475,26 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
     }
 
     // Capture phase: intercept before event reaches UI elements
+    // pointercancel（手机长按后浏览器接管）只重置状态，不触发任何动作
+    const onCancel = () => {
+      if (!isDragging.current) return
+      isDragging.current = false
+      hasMoved.current = false
+      dragHistory.current = []
+      document.body.style.cursor = CURSORS.default
+      petMesh.current?.reset?.()
+    }
+
     window.addEventListener('pointerdown', onDown, { capture: true, passive: false })
     window.addEventListener('pointermove', onMove, { capture: true, passive: false })
     window.addEventListener('pointerup', onUp, { capture: true })
-    window.addEventListener('pointercancel', onUp, { capture: true })
+    window.addEventListener('pointercancel', onCancel, { capture: true })
 
     return () => {
       window.removeEventListener('pointerdown', onDown, { capture: true })
       window.removeEventListener('pointermove', onMove, { capture: true })
       window.removeEventListener('pointerup', onUp, { capture: true })
-      window.removeEventListener('pointercancel', onUp, { capture: true })
+      window.removeEventListener('pointercancel', onCancel, { capture: true })
       document.body.style.cursor = ''
     }
   }, [screenToWorld])
@@ -613,7 +623,7 @@ export default function InteractivePet() {
       {/* Full-screen overlay — pointer-events:none so UI below still works */}
       <div
         className="fixed inset-0 z-40"
-        style={{ pointerEvents: 'none' }}
+        style={{ pointerEvents: 'none', touchAction: 'none' }}
       >
         {/* Speech bubble — positioned near cat (bottom-right) */}
         <AnimatePresence>
