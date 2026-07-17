@@ -37,3 +37,9 @@ apps/format_converter/test_resources/转换后/
 
 # Docker
 .docker/
+
+# Batch Background Remover - 运行时产物
+apps/batch_bg_remover/backend/uploads/
+apps/batch_bg_remover/backend/outputs/
+apps/batch_bg_remover/backend/static/
+apps/batch_bg_remover/data/

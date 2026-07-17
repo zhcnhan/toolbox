@@ -1,0 +1,33 @@
+# =========================================================================
+# Batch Background Remover — Docker Compose 部署
+# =========================================================================
+# 用法：
+#   docker compose up -d          # 启动
+#   docker compose logs -f        # 查看日志
+#   docker compose down           # 停止
+#   docker compose up -d --build  # 重新构建并启动
+# =========================================================================
+
+services:
+  batch-bg-remover:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: batch-bg-remover
+    ports:
+      - "${PORT:-8001}:8001"
+    volumes:
+      # 持久化上传和输出文件（重启不丢失）
+      - ./data/uploads:/app/uploads
+      - ./data/outputs:/app/outputs
+      # 持久化 rembg 模型缓存（避免每次重启重新下载）
+      - ./data/.u2net:/root/.u2net
+    environment:
+      - PORT=8001
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/api/health').raise_for_status()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

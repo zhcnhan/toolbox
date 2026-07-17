@@ -1,0 +1,45 @@
+# =========================================================================
+# systemd service 文件
+# 用于在 Linux 服务器上将 Batch Background Remover 注册为系统服务
+# =========================================================================
+# 用法：
+#   1. 复制到 /etc/systemd/system/batch-bg-remover.service
+#   2. 修改下方的路径和用户
+#   3. systemctl daemon-reload
+#   4. systemctl enable batch-bg-remover
+#   5. systemctl start batch-bg-remover
+#   6. 查看日志: journalctl -u batch-bg-remover -f
+# =========================================================================
+
+[Unit]
+Description=Batch Background Remover
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+
+# 修改为你的实际路径
+WorkingDirectory=/opt/batch-bg-remover/backend
+ExecStart=/opt/batch-bg-remover/backend/venv/bin/python main.py
+
+# 环境变量
+Environment=PORT=8001
+Environment=PYTHONUNBUFFERED=1
+
+# 重启策略
+Restart=always
+RestartSec=5
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+
+# 安全限制
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/batch-bg-remover/backend/uploads /opt/batch-bg-remover/backend/outputs
+
+[Install]
+WantedBy=multi-user.target

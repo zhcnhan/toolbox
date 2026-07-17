@@ -24,7 +24,7 @@
 
 | 目录 | 定位 | 内容 |
 |------|------|------|
-| [`apps/`](#apps) | Web 应用 / CLI 工具 | Format Converter |
+| [`apps/`](#apps) | Web 应用 / CLI 工具 | Format Converter · Batch Background Remover |
 | [`cli-tools/`](#cli-tools) | 纯命令行工具 | Git Mirror |
 | [`toys/`](#toys) | 小型趣味玩具 | 待添加 |
 | [`snippets/`](#snippets) | 可复用代码片段 | 待添加 |
@@ -63,6 +63,36 @@ docker compose up -d
 ```
 
 [完整文档](apps/format_converter/README.md) · [部署教程](apps/format_converter/DEPLOY.md)
+
+### Batch Background Remover
+
+批量抠图 Web 服务，6 引擎可选（本地 + 云端）。
+
+| 引擎 | 类型 | 自动抠图 | 提示词分割 | 价格 |
+|------|------|:-------:|:---------:|------|
+| rembg | 本地 | ✅ | ❌ | 免费 |
+| CLIPSeg | 本地 | ❌ | ✅ | 免费 |
+| remove.bg | 云端 | ✅ | ❌ | 50张/月免费 |
+| 擦个图 | 云端 | ✅ | ❌ | 0.1元/次 |
+| Gemini | 云端 | ✅ | ✅ | 有免费额度 |
+| 自定义 | 云端 | ✅ | ✅ | 取决于服务商 |
+
+**功能亮点：**
+- ✂️ **6 引擎** — 本地 rembg/CLIPSeg + 云端 remove.bg/擦个图/Gemini/自定义
+- 🔌 **插件式架构** — 新增引擎只需写一个 `*_engine.py` 文件，自动发现注册
+- 📦 **批量处理** — 一次拖入多张图，逐张抠图，一键打包下载
+- 🎀 **可爱界面** — 玻璃拟态深色主题，Framer Motion 动画
+- 📦 **多种部署** — Docker Compose / 手动 / Nginx + HTTPS / systemd
+
+```bash
+cd apps/batch_bg_remover
+# Docker 方式
+docker compose up -d --build
+# 或手动启动
+python run.py
+```
+
+[完整文档](apps/batch_bg_remover/README.md) · [部署教程](apps/batch_bg_remover/DEPLOY.md)
 
 ---
 
@@ -123,12 +153,22 @@ git-mirror sync --all
 toolbox/
 ├── apps/
 │   ├── README.md                                           # 应用目录概览
-│   └── format_converter/       # 万能格式转换 Web 服务
-│       ├── backend/            #   FastAPI 后端 + 转换引擎
-│       ├── frontend/           #   React 前端 + 3D 互动
+│   ├── format_converter/       # 万能格式转换 Web 服务
+│   │   ├── backend/            #   FastAPI 后端 + 转换引擎
+│   │   ├── frontend/           #   React 前端 + 3D 互动
+│   │   ├── Dockerfile
+│   │   ├── docker-compose.yml
+│   │   ├── nginx.conf
+│   │   ├── DEPLOY.md
+│   │   └── README.md
+│   └── batch_bg_remover/       # 批量抠图 Web 服务
+│       ├── backend/            #   FastAPI 后端 + 6 引擎
+│       ├── frontend/           #   React 前端
+│       ├── run.py              #   一键启动脚本
 │       ├── Dockerfile
 │       ├── docker-compose.yml
 │       ├── nginx.conf
+│       ├── batch-bg-remover.service  # systemd 服务
 │       ├── DEPLOY.md
 │       └── README.md
 ├── cli-tools/
