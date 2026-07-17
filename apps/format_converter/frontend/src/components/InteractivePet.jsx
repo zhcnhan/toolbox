@@ -168,7 +168,7 @@ const MODELS = [
   { id: 'cat', name: '🐱 小猫', url: '/cat_model.glb', tip: '默认模型',
     settings: { noHalo: false, scaleMult: 1.0, brightness: 0.8 } },
   { id: 'shen', name: '🗿 Shen', url: '/shen_model.glb', tip: '新模型',
-    settings: { noHalo: true, scaleMult: 4.0, brightness: 1.3 } },
+    settings: { noHalo: true, scaleMult: 1.5, brightness: 1.3 } },
 ]
 
 const CatModel = React.forwardRef(function CatModel(props, ref) {
