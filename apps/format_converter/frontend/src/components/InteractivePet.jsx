@@ -2,6 +2,7 @@ import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 import { motion, AnimatePresence } from 'framer-motion'
 
 // ============================================================
@@ -145,6 +146,10 @@ function _getOrLoadModel(url) {
   if (_loadPromises[url]) return _loadPromises[url]
   _loadPromises[url] = new Promise((resolve, reject) => {
     const loader = new GLTFLoader()
+    // Draco 解压缩
+    const dracoLoader = new DRACOLoader()
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/')
+    loader.setDRACOLoader(dracoLoader)
     loader.load(
       url,
       (gltf) => { _cachedScenes[url] = _processModel(gltf.scene); resolve(_cachedScenes[url]) },
@@ -812,8 +817,7 @@ export default function InteractivePet() {
               className={`text-[11px] px-2 py-0.5 rounded-full transition-all pointer-events-auto
                 ${i === modelIdx
                   ? 'bg-white/15 text-white/80 border border-white/15'
-                  : 'bg-white/5 text-white/30 border border-transparent hover:bg-white/10 hover:text-white/50'}
-                ${i > 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  : 'bg-white/5 text-white/30 border border-transparent hover:bg-white/10 hover:text-white/50'}`}
             >
               {m.name}
             </button>
