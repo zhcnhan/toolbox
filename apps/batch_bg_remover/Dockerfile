@@ -34,7 +34,7 @@ RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debia
 # 安装系统依赖（rembg/onnxruntime 需要 libglib, libgl）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
-    libgl1-mesa-glx \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # pip 换清华源（国内加速）
