@@ -94,10 +94,10 @@ function playMeow() {
 
 // ============================================================
 // CatModel — loads external GLB model with holy backlight
-// Module-level model cache — loads ONCE, shared across all renders
+// Module-level model cache per URL — loads ONCE, shared across all renders
 // ============================================================
-let _cachedScene = null
-let _loadPromise = null
+let _cachedScenes = {}
+let _loadPromises = {}
 
 function _processModel(gltfScene) {
   const cloned = gltfScene.clone()
@@ -140,35 +140,45 @@ function _processModel(gltfScene) {
   return cloned
 }
 
-function _getOrLoadModel() {
-  if (_cachedScene) return Promise.resolve(_cachedScene)
-  if (_loadPromise) return _loadPromise
-  _loadPromise = new Promise((resolve, reject) => {
+function _getOrLoadModel(url) {
+  if (_cachedScenes[url]) return Promise.resolve(_cachedScenes[url])
+  if (_loadPromises[url]) return _loadPromises[url]
+  _loadPromises[url] = new Promise((resolve, reject) => {
     const loader = new GLTFLoader()
     loader.load(
-      '/cat_model.glb',
-      (gltf) => { _cachedScene = _processModel(gltf.scene); resolve(_cachedScene) },
+      url,
+      (gltf) => { _cachedScenes[url] = _processModel(gltf.scene); resolve(_cachedScenes[url]) },
       undefined,
-      (err) => { _loadPromise = null; reject(err) },
+      (err) => { _loadPromises[url] = null; reject(err) },
     )
   })
-  return _loadPromise
+  return _loadPromises[url]
 }
-_getOrLoadModel()
+// Preload default cat model
+const DEFAULT_MODEL_URL = '/cat_model.glb'
+_getOrLoadModel(DEFAULT_MODEL_URL)
+
+// ── 可用模型列表 ──
+const MODELS = [
+  { id: 'cat', name: '🐱 小猫咪', url: '/cat_model.glb', tip: '默认模型' },
+  // 以下待添加
+  // { id: 'dog', name: '🐶 小狗', url: '/dog_model.glb', tip: '即将推出' },
+  // { id: 'fox', name: '🦊 小狐狸', url: '/fox_model.glb', tip: '即将推出' },
+]
 
 const CatModel = React.forwardRef(function CatModel(props, ref) {
-  const { emotion, mouse3D, isSleeping, wantsLean, leanTarget } = props
+  const { emotion, mouse3D, isSleeping, wantsLean, leanTarget, modelUrl = DEFAULT_MODEL_URL } = props
   const groupRef = useRef()
   const haloRef = useRef()
   const bodyTarget = useRef(new THREE.Vector3(1, 1, 1))
   const squishing = useRef(false)
-  const [modelScene, setModelScene] = useState(_cachedScene)
+  const [modelScene, setModelScene] = useState(() => _cachedScenes[modelUrl] || null)
 
   useEffect(() => {
     let cancelled = false
-    _getOrLoadModel().then((scene) => { if (!cancelled) setModelScene(scene) })
+    _getOrLoadModel(modelUrl).then((scene) => { if (!cancelled) setModelScene(scene) })
     return () => { cancelled = true }
-  }, [])
+  }, [modelUrl])
 
   React.useImperativeHandle(ref, () => ({
     squish(amount) {
@@ -348,7 +358,7 @@ function SleepZ() {
 // PhysicsScene — all interaction and physics logic
 // ============================================================
 const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
-  const { emotion, onSetEmotion, onSpeech, onSpawnParticle, onMood, onSleep } = props
+  const { emotion, onSetEmotion, onSpeech, onSpawnParticle, onMood, onSleep, modelUrl } = props
 
   const petMesh = useRef()
   const catGroupRef = useRef()
@@ -684,7 +694,8 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
         <CatModel ref={petMesh} emotion={emotion} mouse3D={mouseWorld}
           isSleeping={isSleepingRef.current}
           wantsLean={wantsLean.current}
-          leanTarget={leanTarget.current} />
+          leanTarget={leanTarget.current}
+          modelUrl={modelUrl} />
         <SatelliteText />
         {isSleepingRef.current && <SleepZ />}
       </group>
@@ -707,6 +718,8 @@ export default function InteractivePet() {
   const [emotion, setEmotion] = useState('idle')
   const [moodVal, setMoodVal] = useState(5)
   const [isSleeping, setIsSleeping] = useState(false)
+  const [modelIdx, setModelIdx] = useState(0)
+  const currentModel = MODELS[modelIdx]
   const pidRef = useRef(0)
 
   useEffect(() => {
@@ -779,10 +792,33 @@ export default function InteractivePet() {
               onSpawnParticle={spawnParticle}
               onMood={doMood}
               onSleep={setIsSleeping}
+              modelUrl={currentModel.url}
               onDebug={() => {}}
             />
           </Canvas>
         )}
+      </div>
+
+      {/* Model switcher */}
+      <div className="fixed top-4 right-5 z-50">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-white/30">模型</span>
+          {MODELS.map((m, i) => (
+            <button
+              key={m.id}
+              onClick={() => setModelIdx(i)}
+              disabled={m.url === '/' || !m.url}
+              title={m.tip || m.name}
+              className={`text-[11px] px-2 py-0.5 rounded-full transition-all pointer-events-auto
+                ${i === modelIdx
+                  ? 'bg-white/15 text-white/80 border border-white/15'
+                  : 'bg-white/5 text-white/30 border border-transparent hover:bg-white/10 hover:text-white/50'}
+                ${i > 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Info hint */}
