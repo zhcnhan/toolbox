@@ -9,6 +9,9 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /build/frontend
 
+# npm 换淘宝源（国内加速）
+RUN npm config set registry https://registry.npmmirror.com
+
 # 先复制依赖文件，利用 Docker 缓存
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --production=false
@@ -24,11 +27,18 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# apt 换阿里云源（国内加速）
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+    sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
+
 # 安装系统依赖（rembg/onnxruntime 需要 libglib, libgl）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
+
+# pip 换清华源（国内加速）
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 安装 Python 依赖
 # requirements.txt 不含 torch/transformers（可选，体积大）
