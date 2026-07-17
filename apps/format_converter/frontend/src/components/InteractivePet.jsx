@@ -160,10 +160,10 @@ _getOrLoadModel(DEFAULT_MODEL_URL)
 
 // ── 可用模型列表 ──
 const MODELS = [
-  { id: 'cat', name: '🐱 小猫咪', url: '/cat_model.glb', tip: '默认模型' },
+  { id: 'cat', name: '🐱 小猫', url: '/cat_model.glb', tip: '默认模型' },
+  { id: 'shen', name: '🗿 Shen', url: '/shen_model.glb', tip: '新模型' },
   // 以下待添加
   // { id: 'dog', name: '🐶 小狗', url: '/dog_model.glb', tip: '即将推出' },
-  // { id: 'fox', name: '🦊 小狐狸', url: '/fox_model.glb', tip: '即将推出' },
 ]
 
 const CatModel = React.forwardRef(function CatModel(props, ref) {

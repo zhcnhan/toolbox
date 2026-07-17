@@ -1,12 +1,10 @@
 // Service Worker — 缓存 3D 模型，手机/桌面通吃
-const CACHE_NAME = 'toolbox-cat-v1'
+const CACHE_NAME = 'toolbox-cat-v2'
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing...')
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Caching cat_model.glb')
-      return cache.add('/cat_model.glb')
+      return cache.addAll(['/cat_model.glb', '/shen_model.glb'])
     })
   )
 })
@@ -23,7 +21,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
   // 只拦截模型文件
-  if (url.pathname === '/cat_model.glb') {
+  if (url.pathname.endsWith('.glb')) {
     event.respondWith(
       caches.match(event.request).then((cached) => cached || fetch(event.request))
     )
