@@ -182,6 +182,7 @@ const CatModel = React.forwardRef(function CatModel(props, ref) {
 
   useEffect(() => {
     let cancelled = false
+    setModelScene(null) // 切换模型时立即清空旧模型，防止缩放残留
     _getOrLoadModel(modelUrl).then((scene) => { if (!cancelled) setModelScene(scene) })
     return () => { cancelled = true }
   }, [modelUrl])
@@ -227,7 +228,7 @@ const CatModel = React.forwardRef(function CatModel(props, ref) {
   })
 
   return (
-    <group ref={groupRef} scale={[scaleMult, scaleMult, scaleMult]}>
+    <group ref={groupRef}>
       {!noHalo && (
         <>
           <mesh ref={haloRef} position={[0, 0, 0]} renderOrder={-1}>
@@ -242,7 +243,9 @@ const CatModel = React.forwardRef(function CatModel(props, ref) {
           </mesh>
         </>
       )}
-      {modelScene && <primitive object={modelScene} />}
+      <group scale={[scaleMult, scaleMult, scaleMult]}>
+        {modelScene && <primitive object={modelScene} />}
+      </group>
       <mesh position={[0, -0.35, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.2, 32]} />
         <meshBasicMaterial color="#000" transparent opacity={0.12} />
