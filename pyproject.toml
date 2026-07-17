@@ -1,7 +1,7 @@
 [project]
 name = "toolbox"
 version = "1.0.0"
-description = "个人开发者工具箱 — 实用桌面工具、自动化脚本和开发辅助合集"
+description = "个人开发者工具箱 — Web 应用、命令行工具和自动化脚本合集"
 requires-python = ">=3.9"
 readme = "README.md"
 license = { text = "MIT" }

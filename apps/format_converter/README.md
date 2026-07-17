@@ -199,7 +199,6 @@ apps/format_converter/
 │   │   └── cat_model.glb           #    3D 猫咪模型
 │   ├── package.json
 │   └── vite.config.js
-├── src/                            # PySide6 桌面版（独立，可选）
 ├── Dockerfile                      # Docker 构建
 ├── docker-compose.yml              # Docker Compose
 ├── nginx.conf                      # Nginx 配置（可选）
