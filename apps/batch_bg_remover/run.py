@@ -48,6 +48,83 @@ def build_frontend():
     print(f"[Build] 构建完成，输出到 {STATIC_DIR}")
 
 
+def check_clipseg_deps():
+    """
+    检测 CLIPSeg 依赖（torch + transformers）是否已安装。
+    未安装时提示用户是否要安装（体积大，可选）。
+    """
+    try:
+        import torch  # noqa: F401
+        import transformers  # noqa: F401
+        return True  # 已安装
+    except ImportError:
+        pass
+
+    print()
+    print("=" * 60)
+    print("  CLIPSeg 提示词分割引擎 — 依赖未安装")
+    print("=" * 60)
+    print()
+    print("  CLIPSeg 引擎可以让用户通过文本提示词（如「猫」「红色汽车」）")
+    print("  精确选取图片中的主体进行抠图。")
+    print()
+    print("  ⚠️  警告：安装体积较大")
+    print("     · torch (CPU 版)      ~200 MB")
+    print("     · transformers         ~500 MB")
+    print("     · 首次使用还需下载模型  ~1.5 GB")
+    print("     合计约 2.2 GB 磁盘空间")
+    print()
+    print("  不安装也能正常使用其他功能：")
+    print("     · rembg 本地自动抠图    ✅")
+    print("     · remove.bg 云端抠图    ✅")
+    print("     · 擦个图云端抠图        ✅")
+    print("     · Gemini 云端抠图       ✅")
+    print("     · 自定义引擎            ✅")
+    print("     · CLIPSeg 提示词分割    ❌（需要此依赖）")
+    print()
+
+    try:
+        choice = input("  是否现在安装 CLIPSeg 依赖？[y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        choice = "n"
+
+    if choice != "y":
+        print()
+        print("  跳过安装。CLIPSeg 引擎将不可用，其他功能不受影响。")
+        print("  之后可手动安装: pip install transformers torch")
+        print()
+        return False
+
+    print()
+    print("  正在安装 torch (CPU 版) + transformers ...")
+    print("  这可能需要几分钟，请耐心等待...")
+    print()
+
+    # 先装 CPU 版 torch（从官方源，体积更小）
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install",
+         "torch", "--index-url", "https://download.pytorch.org/whl/cpu"],
+        cwd=BACKEND_DIR,
+    )
+    if result.returncode != 0:
+        print("  torch 安装失败！CLIPSeg 将不可用。")
+        print("  可稍后手动安装: pip install transformers torch")
+        return False
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "transformers"],
+        cwd=BACKEND_DIR,
+    )
+    if result.returncode != 0:
+        print("  transformers 安装失败！CLIPSeg 将不可用。")
+        return False
+
+    print()
+    print("  CLIPSeg 依赖安装成功！首次使用时会自动下载模型 (~1.5GB)。")
+    print()
+    return True
+
+
 def run_production(port):
     """生产模式：单进程"""
     if not STATIC_DIR.exists():
@@ -103,6 +180,10 @@ def main():
     if args.build:
         build_frontend()
         return
+
+    # 检测 CLIPSeg 依赖（可选，体积大，提示用户）
+    if not args.dev or True:  # 开发和生产模式都检测
+        check_clipseg_deps()
 
     if args.dev:
         run_dev(args.port)
