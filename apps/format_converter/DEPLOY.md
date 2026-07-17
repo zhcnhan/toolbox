@@ -307,9 +307,12 @@ ExecStart=/opt/toolbox/apps/format_converter/backend/venv/bin/uvicorn \
     format_converter.main:app \
     --host 127.0.0.1 \
     --port 8000 \
-    --workers 4
+    --workers 1
+# ⚠️ workers 必须为 1！任务存在内存中，多 worker 会导致跨进程 404
 Restart=always
 RestartSec=5
+StartLimitBurst=10
+StartLimitIntervalSec=120
 StandardOutput=journal
 StandardError=journal
 
