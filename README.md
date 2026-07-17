@@ -24,11 +24,11 @@
 
 | 目录 | 定位 | 内容 |
 |------|------|------|
-| [`apps/`](#apps) | Web 应用 / CLI 工具 | Format Converter · Git Mirror |
-| `cli-tools/` | 纯命令行工具 | 待添加 |
-| `toys/` | 小型趣味玩具 | 待添加 |
-| `snippets/` | 可复用代码片段 | 待添加 |
-| `tests/` | 实验性/测试程序 | 待添加
+| [`apps/`](#apps) | Web 应用 / CLI 工具 | Format Converter |
+| [`cli-tools/`](#cli-tools) | 纯命令行工具 | Git Mirror |
+| [`toys/`](#toys) | 小型趣味玩具 | 待添加 |
+| [`snippets/`](#snippets) | 可复用代码片段 | 待添加 |
+| [`tests/`](#tests) | 实验性/测试程序 | 待添加
 
 ---
 
@@ -66,12 +66,16 @@ docker compose up -d
 
 ---
 
+## cli-tools
+
+存放纯命令行工具的目录。每个工具是独立的 Python 包或脚本，通过命令行参数交互，适合自动化流程和 CI/CD 集成。
+
 ### Git Mirror
 
 通用 Git 仓库双向镜像同步工具。在任意两个 Git remote（如 Gitee ↔ GitHub）之间同步代码，支持自动凭据管理。
 
 ```bash
-cd apps/git-mirror
+cd cli-tools/git-mirror
 pip install -e .
 
 git-mirror add <name> -r gitee=<url> -r github=<url>
@@ -85,15 +89,7 @@ git-mirror sync --all
 - 📦 **多仓库** — 同时管理多个仓库的同步规则
 - ⏰ **定时运行** — 配合 crontab 实现自动同步
 
-[完整文档](apps/git-mirror/README.md)
-
----
-
-## cli-tools
-
-存放纯命令行工具的目录。每个工具是独立的 Python 包或脚本，通过命令行参数交互，适合自动化流程和 CI/CD 集成。
-
-> *待添加*
+[完整文档](cli-tools/git-mirror/README.md)
 
 ---
 
@@ -126,19 +122,19 @@ git-mirror sync --all
 ```
 toolbox/
 ├── apps/
-│   ├── format_converter/       # 万能格式转换 Web 服务
-│   │   ├── backend/            #   FastAPI 后端 + 转换引擎
-│   │   ├── frontend/           #   React 前端 + 3D 互动
-│   │   ├── Dockerfile
-│   │   ├── docker-compose.yml
-│   │   ├── nginx.conf
-│   │   ├── DEPLOY.md
-│   │   └── README.md
+│   └── format_converter/       # 万能格式转换 Web 服务
+│       ├── backend/            #   FastAPI 后端 + 转换引擎
+│       ├── frontend/           #   React 前端 + 3D 互动
+│       ├── Dockerfile
+│       ├── docker-compose.yml
+│       ├── nginx.conf
+│       ├── DEPLOY.md
+│       └── README.md
+├── cli-tools/
 │   └── git-mirror/             # Git 仓库双向镜像同步
 │       ├── git_mirror/         #   Python 包
 │       ├── pyproject.toml
 │       └── README.md
-├── cli-tools/                  # 纯命令行工具（待添加）
 ├── toys/                       # 小型趣味玩具（待添加）
 ├── snippets/                   # 可复用代码片段（待添加）
 ├── tests/                      # 实验性/测试程序（待添加）

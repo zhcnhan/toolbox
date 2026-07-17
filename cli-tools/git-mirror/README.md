@@ -5,7 +5,7 @@
 ## 安装
 
 ```bash
-cd apps/git-mirror
+cd cli-tools/git-mirror
 pip install -e .
 ```
 
