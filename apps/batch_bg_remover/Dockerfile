@@ -41,12 +41,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 安装 Python 依赖
-# requirements.txt 不含 torch/transformers（可选，体积大）
-# Docker 模式自动安装 CPU 版以支持 CLIPSeg 引擎
 COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir transformers && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# CLIPSeg 引擎依赖（可选，体积大 ~800MB）
+# 默认不装。需要时用 --build-arg INSTALL_CLIPSEG=true 启用
+ARG INSTALL_CLIPSEG=false
+RUN if [ "$INSTALL_CLIPSEG" = "true" ]; then \
+        echo "[Docker] Installing CLIPSeg deps (torch + transformers ~800MB)..."; \
+        pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu; \
+        pip install --no-cache-dir transformers; \
+    else \
+        echo "[Docker] Skipping CLIPSeg deps (INSTALL_CLIPSEG=false). CLIPSeg engine will not be available."; \
+    fi
 
 # 复制后端代码
 COPY backend/ /app/

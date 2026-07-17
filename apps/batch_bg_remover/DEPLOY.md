@@ -58,6 +58,21 @@ ports:
   - "9000:8001"
 ```
 
+### 启用 CLIPSeg 引擎（可选）
+
+默认不安装 CLIPSeg 依赖（torch + transformers，约 800MB）。如需提示词分割功能：
+
+```bash
+# 方法1: 修改 docker-compose.yml 中 INSTALL_CLIPSEG: "true"，然后
+docker compose up -d --build
+
+# 方法2: 命令行直接传参
+docker compose build --build-arg INSTALL_CLIPSEG=true
+docker compose up -d
+```
+
+> 不装 CLIPSeg 也能用 Gemini / 自定义引擎做提示词分割，只是本地 CLIPSeg 不可用。
+
 ### 停止 / 重启
 
 ```bash
