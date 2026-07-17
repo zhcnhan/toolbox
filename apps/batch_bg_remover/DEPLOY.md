@@ -29,7 +29,7 @@
 
 ```bash
 # 1. 克隆仓库（或上传项目文件）
-git clone <repo-url> && cd toolbox/apps/batch_bg_remover
+git clone https://github.com/zhcnhan/toolbox.git && cd toolbox/apps/batch_bg_remover
 
 # 2. 构建并启动
 docker compose up -d --build
