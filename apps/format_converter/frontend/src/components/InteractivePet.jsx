@@ -165,14 +165,15 @@ _getOrLoadModel(DEFAULT_MODEL_URL)
 
 // ── 可用模型列表 ──
 const MODELS = [
-  { id: 'cat', name: '🐱 小猫', url: '/cat_model.glb', tip: '默认模型' },
-  { id: 'shen', name: '🗿 Shen', url: '/shen_model.glb', tip: '新模型' },
-  // 以下待添加
-  // { id: 'dog', name: '🐶 小狗', url: '/dog_model.glb', tip: '即将推出' },
+  { id: 'cat', name: '🐱 小猫', url: '/cat_model.glb', tip: '默认模型',
+    settings: { noHalo: false, scaleMult: 1.0, brightness: 0.8 } },
+  { id: 'shen', name: '🗿 Shen', url: '/shen_model.glb', tip: '新模型',
+    settings: { noHalo: true, scaleMult: 1.4, brightness: 1.3 } },
 ]
 
 const CatModel = React.forwardRef(function CatModel(props, ref) {
-  const { emotion, mouse3D, isSleeping, wantsLean, leanTarget, modelUrl = DEFAULT_MODEL_URL } = props
+  const { emotion, mouse3D, isSleeping, wantsLean, leanTarget, modelUrl = DEFAULT_MODEL_URL,
+          noHalo = false, scaleMult = 1.0, brightness = 0.8 } = props
   const groupRef = useRef()
   const haloRef = useRef()
   const bodyTarget = useRef(new THREE.Vector3(1, 1, 1))
@@ -226,17 +227,21 @@ const CatModel = React.forwardRef(function CatModel(props, ref) {
   })
 
   return (
-    <group ref={groupRef}>
-      <mesh ref={haloRef} position={[0, 0, 0]} renderOrder={-1}>
-        <planeGeometry args={[1.0, 1.0]} />
-        <meshBasicMaterial map={haloTexture} transparent depthWrite={false} depthTest={false}
-          blending={THREE.AdditiveBlending} opacity={0.7} />
-      </mesh>
-      <mesh position={[0, 0, 0]} renderOrder={-1}>
-        <planeGeometry args={[0.6, 0.6]} />
-        <meshBasicMaterial map={haloTexture} transparent depthWrite={false} depthTest={false}
-          blending={THREE.AdditiveBlending} opacity={0.35} />
-      </mesh>
+    <group ref={groupRef} scale={[scaleMult, scaleMult, scaleMult]}>
+      {!noHalo && (
+        <>
+          <mesh ref={haloRef} position={[0, 0, 0]} renderOrder={-1}>
+            <planeGeometry args={[1.0, 1.0]} />
+            <meshBasicMaterial map={haloTexture} transparent depthWrite={false} depthTest={false}
+              blending={THREE.AdditiveBlending} opacity={0.7} />
+          </mesh>
+          <mesh position={[0, 0, 0]} renderOrder={-1}>
+            <planeGeometry args={[0.6, 0.6]} />
+            <meshBasicMaterial map={haloTexture} transparent depthWrite={false} depthTest={false}
+              blending={THREE.AdditiveBlending} opacity={0.35} />
+          </mesh>
+        </>
+      )}
       {modelScene && <primitive object={modelScene} />}
       <mesh position={[0, -0.35, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.2, 32]} />
@@ -363,7 +368,9 @@ function SleepZ() {
 // PhysicsScene — all interaction and physics logic
 // ============================================================
 const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
-  const { emotion, onSetEmotion, onSpeech, onSpawnParticle, onMood, onSleep, modelUrl } = props
+  const { emotion, onSetEmotion, onSpeech, onSpawnParticle, onMood, onSleep,
+          modelUrl, modelSettings = {} } = props
+  const { noHalo, scaleMult, brightness = 0.8 } = modelSettings
 
   const petMesh = useRef()
   const catGroupRef = useRef()
@@ -688,19 +695,22 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
 
   return (
     <group ref={_forwardedRef}>
-      <ambientLight intensity={0.8} />
-      <pointLight position={[0, 3.5, 0]} intensity={2.5} color="#fff8dc" distance={6} decay={1.5} />
-      <pointLight position={[0, 2.0, 0.8]} intensity={1.2} color="#ffe4b5" distance={5} decay={1.8} />
-      <directionalLight position={[4, 5, 3]} intensity={0.8} castShadow />
-      <pointLight position={[0, 1.5, 2]} intensity={0.5} color="#818cf8" />
-      <pointLight position={[-2, -1, -1]} intensity={0.15} color="#a78bfa" />
+      <ambientLight intensity={brightness} />
+      <pointLight position={[0, 3.5, 0]} intensity={2.5 * (brightness / 0.8)} color="#fff8dc" distance={6} decay={1.5} />
+      <pointLight position={[0, 2.0, 0.8]} intensity={1.2 * (brightness / 0.8)} color="#ffe4b5" distance={5} decay={1.8} />
+      <directionalLight position={[4, 5, 3]} intensity={0.8 * (brightness / 0.8)} castShadow />
+      <pointLight position={[0, 1.5, 2]} intensity={0.5 * (brightness / 0.8)} color="#818cf8" />
+      <pointLight position={[-2, -1, -1]} intensity={0.15 * (brightness / 0.8)} color="#a78bfa" />
 
       <group ref={catGroupRef} position={[0, 0.3, 0]}>
         <CatModel ref={petMesh} emotion={emotion} mouse3D={mouseWorld}
           isSleeping={isSleepingRef.current}
           wantsLean={wantsLean.current}
           leanTarget={leanTarget.current}
-          modelUrl={modelUrl} />
+          modelUrl={modelUrl}
+          noHalo={noHalo}
+          scaleMult={scaleMult}
+          brightness={brightness} />
         <SatelliteText />
         {isSleepingRef.current && <SleepZ />}
       </group>
@@ -798,6 +808,7 @@ export default function InteractivePet() {
               onMood={doMood}
               onSleep={setIsSleeping}
               modelUrl={currentModel.url}
+              modelSettings={currentModel.settings}
               onDebug={() => {}}
             />
           </Canvas>
