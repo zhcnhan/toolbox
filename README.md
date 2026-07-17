@@ -51,7 +51,7 @@
 **功能亮点：**
 - 🚀 **前后端分离** — React 18 + FastAPI，RESTful 架构
 - 🎨 **极致 UI** — 玻璃拟态、Framer Motion 动画、深色主题
-- 🤖 **3D 互动猫咪** — Three.js 渲染，可拖拽甩飞/点击敲打/自动睡觉/心情系统
+- 🤖 **3D 互动角色** — Three.js 渲染，多模型切换，可拖拽甩飞/点击敲打/自动睡觉/心情系统/叫声
 - 📦 **一键部署** — Docker Compose 或 OpenResty + systemd
 - 📚 **Auto API Docs** — Swagger / ReDoc
 
