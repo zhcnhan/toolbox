@@ -27,7 +27,7 @@ const CURSORS = {
   stick: `url("data:image/svg+xml,${stickCursorSvg}") 16 16, auto`,
 }
 
-// ── Generate a radial-glow halo texture (off‑screen canvas) ──
+// ── Generate a radial-glow halo texture (off-canvas canvas) ──
 const HALO_SIZE = 256
 const haloCanvas = document.createElement('canvas')
 haloCanvas.width = HALO_SIZE
@@ -53,7 +53,6 @@ function createGlowCharTexture(char, color) {
   ctx.font = 'bold 88px "YouYuan", "幼圆", "Noto Sans SC", sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  // Multi-layer glow
   ctx.shadowColor = color
   ctx.shadowBlur = 28; ctx.fillStyle = color; ctx.fillText(char, s / 2, s / 2)
   ctx.shadowBlur = 16; ctx.fillText(char, s / 2, s / 2)
@@ -64,13 +63,38 @@ const linTexture = createGlowCharTexture('林', '#60a5fa')
 const canTexture = createGlowCharTexture('参', '#c084fc')
 
 // ============================================================
-// CatModel — loads external GLB model with holy backlight
-// Uses manual GLTFLoader (no Suspense) so PhysicsScene mounts
-// immediately and pointer events are attached right away.
+// Web Audio — 程序化猫叫声（无需音频文件）
 // ============================================================
+let _audioCtx = null
+function _getAudioCtx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)() } catch (_) { /* noop */ }
+  }
+  return _audioCtx
+}
+
+function playMeow() {
+  const ctx = _getAudioCtx()
+  if (!ctx) return
+  // 短促上升滑音模拟"喵~"
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+  osc.type = 'triangle'
+  osc.frequency.setValueAtTime(400, ctx.currentTime)
+  osc.frequency.linearRampToValueAtTime(650, ctx.currentTime + 0.08)
+  osc.frequency.linearRampToValueAtTime(520, ctx.currentTime + 0.2)
+  gain.gain.setValueAtTime(0, ctx.currentTime)
+  gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.02)
+  gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.25)
+  osc.connect(gain)
+  gain.connect(ctx.destination)
+  osc.start(ctx.currentTime)
+  osc.stop(ctx.currentTime + 0.3)
+}
+
+// ============================================================
+// CatModel — loads external GLB model with holy backlight
 // Module-level model cache — loads ONCE, shared across all renders
-// Starts downloading immediately when the JS chunk is parsed,
-// before React even mounts. Subsequent visits use the cached scene.
 // ============================================================
 let _cachedScene = null
 let _loadPromise = null
@@ -88,7 +112,6 @@ function _processModel(gltfScene) {
   box.getSize(size)
   const maxDim = Math.max(size.x, size.y, size.z) || 1
   const targetScale = 0.5 / maxDim
-
   const estimate = new THREE.Vector3()
   box.getCenter(estimate)
   const v = new THREE.Vector3()
@@ -120,33 +143,21 @@ function _processModel(gltfScene) {
 function _getOrLoadModel() {
   if (_cachedScene) return Promise.resolve(_cachedScene)
   if (_loadPromise) return _loadPromise
-  console.log('[CatModel] Starting model load (singleton)')
   _loadPromise = new Promise((resolve, reject) => {
     const loader = new GLTFLoader()
     loader.load(
       '/cat_model.glb',
-      (gltf) => {
-        _cachedScene = _processModel(gltf.scene)
-        console.log('[CatModel] Model cached (singleton)')
-        resolve(_cachedScene)
-      },
-      (xhr) => {
-        if (xhr.total) console.log('[CatModel] loading', `${((xhr.loaded / xhr.total) * 100).toFixed(0)}%`)
-      },
-      (err) => { _loadPromise = null; console.error('[CatModel] load error', err); reject(err) },
+      (gltf) => { _cachedScene = _processModel(gltf.scene); resolve(_cachedScene) },
+      undefined,
+      (err) => { _loadPromise = null; reject(err) },
     )
   })
   return _loadPromise
 }
-
-// Start preloading immediately — model begins downloading as soon as JS is parsed
 _getOrLoadModel()
 
-// ============================================================
-// CatModel — loads external GLB model with holy backlight
-// Uses module-level singleton cache so model is only fetched once
-// ============================================================
-const CatModel = React.forwardRef(function CatModel({ emotion, mouse3D }, ref) {
+const CatModel = React.forwardRef(function CatModel(props, ref) {
+  const { emotion, mouse3D, isSleeping, wantsLean, leanTarget } = props
   const groupRef = useRef()
   const haloRef = useRef()
   const bodyTarget = useRef(new THREE.Vector3(1, 1, 1))
@@ -170,49 +181,48 @@ const CatModel = React.forwardRef(function CatModel({ emotion, mouse3D }, ref) {
 
   useFrame((state) => {
     const t = state.clock.getElapsedTime()
-    // Breathing animation
-    if (!squishing.current) { const b = 1 + Math.sin(t * 2.5) * 0.03; bodyTarget.current.set(b, b, b) }
+    // Breathing — slower when sleeping
+    if (!squishing.current) {
+      const rate = isSleeping ? 1.2 : 2.5
+      const amp = isSleeping ? 0.015 : 0.03
+      const b = 1 + Math.sin(t * rate) * amp
+      bodyTarget.current.set(b, b, b)
+    }
     if (groupRef.current) {
       groupRef.current.scale.lerp(bodyTarget.current, 0.12)
-      groupRef.current.rotation.z = Math.sin(t * 1.5) * 0.03
+      // Normal sway vs sleepy sway
+      if (isSleeping) {
+        groupRef.current.rotation.z += (-0.01 - groupRef.current.rotation.z) * 0.02
+      } else {
+        groupRef.current.rotation.z = Math.sin(t * 1.5) * 0.03
+      }
+      // Paw tracking — lean toward cursor when nearby
+      if (!isSleeping && wantsLean && leanTarget) {
+        const lx = leanTarget.x * 0.15
+        groupRef.current.rotation.y += (lx - groupRef.current.rotation.y) * 0.05
+      }
     }
-    // Pulsing halo glow
+    // Halo — dimmer when sleeping
     if (haloRef.current) {
-      const pulse = 1 + Math.sin(t * 1.8) * 0.08
+      const pulse = 1 + Math.sin(t * (isSleeping ? 0.6 : 1.8)) * 0.08
       haloRef.current.scale.setScalar(pulse)
-      haloRef.current.material.opacity = 0.75 + Math.sin(t * 2.2 + 1) * 0.25
+      haloRef.current.material.opacity = (isSleeping ? 0.25 : 0.75) + Math.sin(t * 2.2) * 0.15
     }
   })
 
   return (
     <group ref={groupRef}>
-      {/* Holy backlight halo — at z=0 to eliminate parallax, renders behind model via renderOrder */}
       <mesh ref={haloRef} position={[0, 0, 0]} renderOrder={-1}>
         <planeGeometry args={[1.0, 1.0]} />
-        <meshBasicMaterial
-          map={haloTexture}
-          transparent
-          depthWrite={false}
-          depthTest={false}
-          blending={THREE.AdditiveBlending}
-          opacity={0.7}
-        />
+        <meshBasicMaterial map={haloTexture} transparent depthWrite={false} depthTest={false}
+          blending={THREE.AdditiveBlending} opacity={0.7} />
       </mesh>
-      {/* Second smaller, brighter inner glow ring */}
       <mesh position={[0, 0, 0]} renderOrder={-1}>
         <planeGeometry args={[0.6, 0.6]} />
-        <meshBasicMaterial
-          map={haloTexture}
-          transparent
-          depthWrite={false}
-          depthTest={false}
-          blending={THREE.AdditiveBlending}
-          opacity={0.35}
-        />
+        <meshBasicMaterial map={haloTexture} transparent depthWrite={false} depthTest={false}
+          blending={THREE.AdditiveBlending} opacity={0.35} />
       </mesh>
-      {/* The GLB model (renders once loaded) */}
       {modelScene && <primitive object={modelScene} />}
-      {/* Ground shadow */}
       <mesh position={[0, -0.35, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.2, 32]} />
         <meshBasicMaterial color="#000" transparent opacity={0.12} />
@@ -222,32 +232,26 @@ const CatModel = React.forwardRef(function CatModel({ emotion, mouse3D }, ref) {
 })
 
 // ============================================================
-// SatelliteText — "林" and "参" orbit the cat like satellites
+// SatelliteText
 // ============================================================
 function SatelliteText() {
   const linRef = useRef()
   const canRef = useRef()
-
   useFrame((state) => {
     const t = state.clock.getElapsedTime()
     const radius = 0.5
     const speed = 1.3
-    // "林" — orbit
     if (linRef.current) {
       const a = t * speed
       linRef.current.position.set(Math.cos(a) * radius, Math.sin(a) * radius * 0.55, Math.sin(a) * 0.35 + 0.1)
-      const s = 1 + Math.sin(t * 3) * 0.08
-      linRef.current.scale.setScalar(s)
+      linRef.current.scale.setScalar(1 + Math.sin(t * 3) * 0.08)
     }
-    // "参" — opposite side of orbit
     if (canRef.current) {
       const a = t * speed + Math.PI
       canRef.current.position.set(Math.cos(a) * radius, Math.sin(a) * radius * 0.55, Math.sin(a) * 0.35 + 0.1)
-      const s = 1 + Math.sin(t * 3 + 1.5) * 0.08
-      canRef.current.scale.setScalar(s)
+      canRef.current.scale.setScalar(1 + Math.sin(t * 3 + 1.5) * 0.08)
     }
   })
-
   return (
     <>
       <mesh ref={linRef} renderOrder={5}>
@@ -263,19 +267,15 @@ function SatelliteText() {
 }
 
 // ============================================================
-// StickHit — 3D stick swing animation on click
+// StickHit
 // ============================================================
 function StickHit({ position, onComplete }) {
   const ref = useRef()
   const start = useRef(performance.now())
-
   useFrame(() => {
     if (!ref.current) return
     const elapsed = (performance.now() - start.current) / 1000
-    if (elapsed > 0.35) {
-      onComplete()
-      return
-    }
+    if (elapsed > 0.35) { onComplete(); return }
     const p = elapsed / 0.35
     if (p < 0.4) {
       const t = p / 0.4
@@ -289,11 +289,9 @@ function StickHit({ position, onComplete }) {
       const t = (p - 0.6) / 0.4
       ref.current.rotation.z = -Math.PI / 3 * (1 - t * 0.5)
       ref.current.position.y = position[1] + 0.3 * t
-      const s = 1 - t
-      ref.current.scale.set(s, s, s)
+      ref.current.scale.set(1 - t, 1 - t, 1 - t)
     }
   })
-
   return (
     <group ref={ref} position={position}>
       <group scale={0.55}>
@@ -311,37 +309,95 @@ function StickHit({ position, onComplete }) {
 }
 
 // ============================================================
-// PhysicsScene — custom physics, drag-to-throw, auto-return
-//
-// Uses NATIVE DOM pointer events on the <canvas> element.
-// No Rapier dependency — custom spring + damping physics.
+// SleepZ — floating "Z" particles when cat is sleeping
+// ============================================================
+function SleepZ() {
+  const zs = useRef([
+    { id: 0, offset: 0, speed: 0.8, size: 0.06 },
+    { id: 1, offset: 1.5, speed: 0.6, size: 0.05 },
+    { id: 2, offset: 3.0, speed: 0.7, size: 0.04 },
+  ])
+  const zRefs = useRef([])
+
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime()
+    zRefs.current.forEach((ref, i) => {
+      if (!ref) return
+      const z = zs.current[i]
+      const phase = (t * z.speed + z.offset) % 4
+      ref.position.set(Math.sin(phase * 0.5) * 0.08, 0.3 + phase * 0.12, 0.2)
+      ref.material.opacity = Math.max(0, 1 - phase / 4) * 0.6
+      ref.scale.setScalar(z.size * (1 + phase * 0.3))
+    })
+  })
+
+  return (
+    <>
+      {zs.current.map((z, i) => (
+        <mesh key={z.id} ref={(el) => { zRefs.current[i] = el }} renderOrder={5}>
+          <planeGeometry args={[0.12, 0.12]} />
+          <meshBasicMaterial transparent depthWrite={false} depthTest={false}
+            blending={THREE.AdditiveBlending} color="#a78bfa" />
+        </mesh>
+      ))}
+    </>
+  )
+}
+
+// ============================================================
+// PhysicsScene — all interaction and physics logic
 // ============================================================
 const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
-  const { emotion, onSetEmotion, onSpeech, onDebug } = props
+  const { emotion, onSetEmotion, onSpeech, onSpawnParticle, onMood, onSleep } = props
 
   const petMesh = useRef()
   const catGroupRef = useRef()
   const catPos = useRef(new THREE.Vector3(0, 0.3, 0))
   const catVel = useRef(new THREE.Vector3(0, 0, 0))
   const mouseWorld = useRef(new THREE.Vector3())
+  const leanTarget = useRef(new THREE.Vector3())
+  const wantsLean = useRef(false)
   const hitCount = useRef(0)
   const emotionTimer = useRef(null)
   const [stickHit, setStickHit] = useState(null)
   const { camera, size, gl } = useThree()
 
-  // ── drag state (refs — stable across renders) ──
+  // ── drag state ──
   const isDragging = useRef(false)
-  const dragStartPos = useRef(null) // { x, y } — pointerdown 位置，用于判断是否为拖拽
-  const dragHistory = useRef([])    // { t, x, y }[]
-  const hasMoved = useRef(false)    // 总位移超过阈值才算拖拽（兼容触摸屏噪声）
+  const dragStartPos = useRef(null)
+  const dragHistory = useRef([])
+  const hasMoved = useRef(false)
   const throwingAt = useRef(0)
-  // Stable ref to current callbacks so native listeners don't stale
-  const onSpeechRef = useRef(onSpeech)
-  onSpeechRef.current = onSpeech
-  const onSetEmotionRef = useRef(onSetEmotion)
-  onSetEmotionRef.current = onSetEmotion
 
-  // ── screen (clientX,clientY) → world (z=0 plane) ──
+  // ── mood / idle / sleep ──
+  const mood = useRef(5)           // 0=angry, 5=neutral, 10=happy
+  const lastInteraction = useRef(performance.now())
+  const idleTimer = useRef(0)
+  const idleAction = useRef(null)  // { type, startTime, duration }
+  const isSleepingRef = useRef(false)
+  const sleepTimer = useRef(0)
+  const nextMeow = useRef(15 + Math.random() * 30)  // seconds between meows
+
+  // stable callbacks
+  const onSpeechRef = useRef(onSpeech); onSpeechRef.current = onSpeech
+  const onSetEmotionRef = useRef(onSetEmotion); onSetEmotionRef.current = onSetEmotion
+  const onSpawnRef = useRef(onSpawnParticle); onSpawnRef.current = onSpawnParticle
+  const onMoodRef = useRef(onMood); onMoodRef.current = onMood
+  const onSleepRef = useRef(onSleep); onSleepRef.current = onSleep
+
+  const _markInteraction = useCallback(() => {
+    lastInteraction.current = performance.now()
+    sleepTimer.current = 0
+    if (isSleepingRef.current) {
+      isSleepingRef.current = false
+      onSleepRef.current?.(false)
+      onSpeechRef.current?.('喵~ 睡醒了！')
+      idleTimer.current = 0
+      idleAction.current = null
+    }
+  }, [])
+
+  // ── screen → world ──
   const screenToWorld = useCallback((clientX, clientY) => {
     const rect = gl.domElement.getBoundingClientRect()
     const x = ((clientX - rect.left) / rect.width) * 2 - 1
@@ -350,35 +406,32 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
     vec.unproject(camera)
     const dir = vec.sub(camera.position).normalize()
     const t = -camera.position.z / dir.z
-    return new THREE.Vector3(
-      camera.position.x + dir.x * t,
-      camera.position.y + dir.y * t,
-      0,
-    )
+    return new THREE.Vector3(camera.position.x + dir.x * t, camera.position.y + dir.y * t, 0)
   }, [camera, gl])
 
-  // ════════════════════════════════════════════════════════════
-  //  Attach pointer events to WINDOW (capture phase).
-  //  Canvas is full-screen with pointer-events:none, so events
-  //  pass through to the UI unless we intercept near the cat.
-  // ════════════════════════════════════════════════════════════
+  // ── pointer events ──
   useEffect(() => {
     document.body.style.cursor = CURSORS.default
+
+    const _endDrag = () => {
+      document.body.style.userSelect = ''
+      document.body.style.webkitUserSelect = ''
+      document.body.style.cursor = CURSORS.default
+    }
 
     const onDown = (e) => {
       const wp = screenToWorld(e.clientX, e.clientY)
       if (!wp) return
       const dist = Math.hypot(wp.x - catPos.current.x, wp.y - catPos.current.y)
-      if (dist > 0.5) return // not near cat — let event pass through to UI
+      if (dist > 0.5) return
 
-      // Near cat — intercept
+      _markInteraction()
       e.stopPropagation()
       e.preventDefault()
       isDragging.current = true
       hasMoved.current = false
       dragStartPos.current = { x: e.clientX, y: e.clientY }
       dragHistory.current = []
-      // 手机：阻止页面选中（touch-action 由下面的 touchmove 拦截处理）
       document.body.style.userSelect = 'none'
       document.body.style.webkitUserSelect = 'none'
       petMesh.current?.squish?.(0.15)
@@ -391,29 +444,18 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       e.preventDefault()
       const wp = screenToWorld(e.clientX, e.clientY)
       if (!wp) return
-
-      // 用屏幕像素位移判断拖拽，跨设备一致
       if (dragStartPos.current) {
         const dx = e.clientX - dragStartPos.current.x
         const dy = e.clientY - dragStartPos.current.y
-        if (Math.hypot(dx, dy) > 6) hasMoved.current = true  // > 6px 算拖拽
+        if (Math.hypot(dx, dy) > 6) hasMoved.current = true
       }
-
       catPos.current.set(wp.x, wp.y, 0)
       catVel.current.set(0, 0, 0)
-
       dragHistory.current.push({ t: performance.now(), x: wp.x, y: wp.y })
       if (dragHistory.current.length > 10) dragHistory.current.shift()
       mouseWorld.current.copy(wp)
     }
 
-    const _endDrag = () => {
-      document.body.style.userSelect = ''
-      document.body.style.webkitUserSelect = ''
-      document.body.style.cursor = CURSORS.default
-    }
-
-    // 底层 touchmove 拦截 — 手机上阻止浏览器接管为滚动
     const onTouchMove = (e) => {
       if (isDragging.current) e.preventDefault()
     }
@@ -425,40 +467,35 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       _endDrag()
 
       if (hasMoved.current) {
-        // ═══ THROW (拖拽) ═══
-        // 可能只有 1 次 pointermove（手机快速拖拽），也有多次（桌面端慢拖）
+        // THROW
         if (dragHistory.current.length >= 2) {
           const last = dragHistory.current[dragHistory.current.length - 1]
           const first = dragHistory.current[0]
           const dt = (last.t - first.t) / 1000
           if (dt > 0.01 && dt < 0.5) {
-            const vx = (last.x - first.x) / dt
-            const vy = (last.y - first.y) / dt
-            catVel.current.set(vx * 0.5, vy * 0.5 + 2.5, 0)
+            catVel.current.set((last.x - first.x) / dt * 0.5, (last.y - first.y) / dt * 0.5 + 2.5, 0)
           } else {
             catVel.current.set(0, 2.5, 0)
           }
         } else {
-          // 拖拽记录不足 → 默认向上抛
           catVel.current.set(0, 2.5, 0)
         }
         throwingAt.current = performance.now()
         petMesh.current?.reset?.()
         onSpeechRef.current?.('咻—— 🚀')
+        // throw = -1 mood
+        mood.current = Math.max(0, mood.current - 1)
+        onMoodRef.current?.(mood.current)
       } else {
-        // ═══ TAP → STICK HIT ═══
+        // TAP → STICK HIT
         const wp = screenToWorld(e.clientX, e.clientY)
         const cx = catPos.current.x
         const cy = catPos.current.y
-
         document.body.style.cursor = CURSORS.stick
-        const hid = Date.now()
-        setStickHit({ x: cx + (Math.random() - 0.5) * 0.15, y: cy + 0.2, id: hid })
+        setStickHit({ x: cx + (Math.random() - 0.5) * 0.15, y: cy + 0.2, id: Date.now() })
         setTimeout(() => { document.body.style.cursor = CURSORS.default }, 350)
-
         if (wp) {
-          const ddx = cx - wp.x
-          const ddy = cy - wp.y
+          const ddx = cx - wp.x; const ddy = cy - wp.y
           const d = Math.hypot(ddx, ddy) || 1
           if (d < 3) {
             const force = Math.max(5, (1 - d / 3) * 14)
@@ -466,7 +503,6 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
             catVel.current.y += (ddy / d) * force + 4
           }
         }
-
         petMesh.current?.squish?.(0.22)
         hitCount.current++
         const hc = hitCount.current
@@ -481,15 +517,15 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
         else if (hc >= 3) { setFace('ouch', 2000); speak?.('痛痛痛！💢') }
         else { setFace('ouch', 1200); speak?.('哎呀！') }
         if (hc > 8) hitCount.current = 0
+        // hit = -2 mood
+        mood.current = Math.max(0, mood.current - 2)
+        onMoodRef.current?.(mood.current)
         if (emotionTimer.current) clearTimeout(emotionTimer.current)
         emotionTimer.current = setTimeout(() => { hitCount.current = 0 }, 4000)
       }
-
       dragHistory.current = []
     }
 
-    // Capture phase: intercept before event reaches UI elements
-    // pointercancel（手机长按后浏览器接管）只重置状态，不触发任何动作
     const onCancel = () => {
       if (!isDragging.current) return
       isDragging.current = false
@@ -513,57 +549,118 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       document.removeEventListener('touchmove', onTouchMove)
       document.body.style.cursor = ''
     }
-  }, [screenToWorld])
+  }, [screenToWorld, _markInteraction])
 
-  // ════════════════════════════════════════════════════════
-  //  Per-frame: custom physics — gravity, spring, damping
-  //  Cat can fly anywhere on screen (even off-screen), spring
-  //  brings it back to home (bottom-right area).
-  // ════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════
+  // Per-frame: physics + idle actions + mood + sleep + meow
+  // ════════════════════════════════════════════════════════════
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30)
     const pos = catPos.current
     const vel = catVel.current
+    const now = performance.now()
+    const idleSince = (now - lastInteraction.current) / 1000
 
-    // Compute home position — bottom-right area of screen
     const fovH = camera.position.z * Math.tan((camera.fov * Math.PI) / 360)
     const fovW = fovH * (size.width / size.height)
     const homeX = fovW * 0.7
     const homeY = -fovH * 0.3
 
-    // Gravity (reduced — playful floaty feel)
-    if (!isDragging.current) {
-      vel.y -= 3.0 * dt
+    // ── mood decay toward neutral ──
+    if (!isDragging.current && idleSince > 3) {
+      const decayRate = 0.05
+      if (mood.current > 5) mood.current = Math.max(5, mood.current - decayRate * dt * 4)
+      else if (mood.current < 5) mood.current = Math.min(5, mood.current + decayRate * dt * 4)
+      onMoodRef.current?.(mood.current)
     }
 
-    // Damping
+    // ── idle actions ──
+    if (!isDragging.current && !isSleepingRef.current) {
+      idleTimer.current += dt
+      if (!idleAction.current) {
+        // choose random action when idle long enough
+        if (idleTimer.current > 5 + Math.random() * 8) {
+          const actions = ['stretch', 'nod', 'lean', 'nothing']
+          idleAction.current = { type: actions[Math.floor(Math.random() * actions.length)], startTime: now, duration: 1.2 }
+          idleTimer.current = 0
+        }
+      } else {
+        const elapsed = (now - idleAction.current.startTime) / 1000
+        if (elapsed > idleAction.current.duration) {
+          idleAction.current = null
+          idleTimer.current = 0
+        }
+      }
+    } else {
+      idleTimer.current = 0
+      idleAction.current = null
+    }
+
+    // Apply idle action to body (via CatModel's squish-like effect)
+    if (idleAction.current?.type === 'stretch' && petMesh.current) {
+      const p = (now - idleAction.current.startTime) / 1000 / idleAction.current.duration
+      if (p < 0.15) petMesh.current.squish(0.08) // quick stretch
+    }
+
+    // ── sleep ──
+    if (!isDragging.current && !isSleepingRef.current) {
+      sleepTimer.current += dt
+      if (sleepTimer.current > 30) {
+        isSleepingRef.current = true
+        onSleepRef.current?.(true)
+      }
+    }
+
+    // ── meow ──
+    if (!isSleepingRef.current) {
+      nextMeow.current -= dt
+      if (nextMeow.current <= 0) {
+        playMeow()
+        onSpawnRef.current?.('🎵')
+        nextMeow.current = 20 + Math.random() * 40
+      }
+    }
+
+    // ── paw tracking (cursor nearby but not dragging) ──
+    if (!isDragging.current && !isSleepingRef.current && mouseWorld.current.lengthSq() > 0.001) {
+      const dx = mouseWorld.current.x - pos.x
+      const dy = mouseWorld.current.y - pos.y
+      const cursorDist = Math.hypot(dx, dy)
+      if (cursorDist < 1.5 && cursorDist > 0.1) {
+        wantsLean.current = true
+        leanTarget.current.set(dx / cursorDist, dy / cursorDist, 0)
+      } else {
+        wantsLean.current = false
+      }
+    } else {
+      wantsLean.current = false
+    }
+
+    // ── gravity ──
+    if (!isDragging.current) vel.y -= 3.0 * dt
+
+    // ── damping ──
     if (!isDragging.current) {
       const damp = Math.max(0, 1 - 0.35 * dt * 4)
       vel.multiplyScalar(damp)
     }
 
-    // Spring toward home — only after throw cooldown
+    // ── spring toward home ──
     const distFromHome = Math.hypot(pos.x - homeX, pos.y - homeY)
-    const inCooldown = (performance.now() - throwingAt.current) < 1500
+    const inCooldown = (now - throwingAt.current) < 1500
     if (!isDragging.current && !inCooldown && distFromHome > 0.1) {
-      const k = 5.0   // spring constant
-      const c = 2.8   // damping
+      const k = 5.0; const c = 2.8
       vel.x += (-(pos.x - homeX) * k - vel.x * c) * dt
       vel.y += (-(pos.y - homeY) * k - vel.y * c) * dt
-      // Snap to rest when very close
       if (distFromHome < 0.05 && Math.abs(vel.x) < 0.3 && Math.abs(vel.y) < 0.3) {
         pos.set(homeX, homeY, 0)
         vel.set(0, 0, 0)
       }
     }
 
-    // Integrate position
-    if (!isDragging.current) {
-      pos.x += vel.x * dt
-      pos.y += vel.y * dt
-    }
+    if (!isDragging.current) { pos.x += vel.x * dt; pos.y += vel.y * dt }
 
-    // Soft far boundary — very generous, just prevents infinite drift
+    // ── soft boundary ──
     const maxR = Math.max(fovW, fovH) * 4
     const distR = Math.hypot(pos.x, pos.y)
     if (distR > maxR) {
@@ -571,34 +668,30 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       vel.y -= (pos.y / distR) * 20 * dt
     }
 
-    // Apply to group
-    if (catGroupRef.current) {
-      catGroupRef.current.position.copy(pos)
-    }
+    if (catGroupRef.current) catGroupRef.current.position.copy(pos)
   })
 
   return (
     <group ref={_forwardedRef}>
       <ambientLight intensity={0.8} />
-      {/* Holy light from above */}
       <pointLight position={[0, 3.5, 0]} intensity={2.5} color="#fff8dc" distance={6} decay={1.5} />
       <pointLight position={[0, 2.0, 0.8]} intensity={1.2} color="#ffe4b5" distance={5} decay={1.8} />
       <directionalLight position={[4, 5, 3]} intensity={0.8} castShadow />
       <pointLight position={[0, 1.5, 2]} intensity={0.5} color="#818cf8" />
       <pointLight position={[-2, -1, -1]} intensity={0.15} color="#a78bfa" />
 
-      {/* Cat — custom physics, position driven by useFrame */}
       <group ref={catGroupRef} position={[0, 0.3, 0]}>
-        <CatModel ref={petMesh} emotion={emotion} mouse3D={mouseWorld} />
+        <CatModel ref={petMesh} emotion={emotion} mouse3D={mouseWorld}
+          isSleeping={isSleepingRef.current}
+          wantsLean={wantsLean.current}
+          leanTarget={leanTarget.current} />
         <SatelliteText />
+        {isSleepingRef.current && <SleepZ />}
       </group>
 
       {stickHit && (
-        <StickHit
-          key={stickHit.id}
-          position={[stickHit.x, stickHit.y + 0.3, 0.3]}
-          onComplete={() => setStickHit(null)}
-        />
+        <StickHit key={stickHit.id} position={[stickHit.x, stickHit.y + 0.3, 0.3]}
+          onComplete={() => setStickHit(null)} />
       )}
     </group>
   )
@@ -612,6 +705,8 @@ export default function InteractivePet() {
   const [speech, setSpeech] = useState(null)
   const [particles, setParticles] = useState([])
   const [emotion, setEmotion] = useState('idle')
+  const [moodVal, setMoodVal] = useState(5)
+  const [isSleeping, setIsSleeping] = useState(false)
   const pidRef = useRef(0)
 
   useEffect(() => {
@@ -621,7 +716,6 @@ export default function InteractivePet() {
 
   const spawnParticle = useCallback((emoji) => {
     const id = ++pidRef.current
-    // Position particles near cat (bottom-right area)
     const x = window.innerWidth - 140 + Math.random() * 80
     const y = window.innerHeight - 160 + Math.random() * 60
     setParticles((p) => [...p.slice(-8), { id, emoji, x, y }])
@@ -630,18 +724,20 @@ export default function InteractivePet() {
 
   const doSpeech = useCallback((msg) => {
     setSpeech(msg)
-    spawnParticle('💬')
     setTimeout(() => setSpeech(null), 2200)
+  }, [])
+
+  const doMood = useCallback((val) => {
+    setMoodVal(val)
+    // mood particles
+    if (val > 7) spawnParticle('❤️')
+    if (val < 3) spawnParticle('💢')
   }, [spawnParticle])
 
   return (
     <>
-      {/* Full-screen overlay — pointer-events:none so UI below still works */}
-      <div
-        className="fixed inset-0 z-40 select-none"
-        style={{ pointerEvents: 'none' }}
-      >
-        {/* Speech bubble — positioned near cat (bottom-right) */}
+      <div className="fixed inset-0 z-40 select-none" style={{ pointerEvents: 'none' }}>
+        {/* Speech bubble */}
         <AnimatePresence>
           {speech && (
             <motion.div
@@ -659,9 +755,7 @@ export default function InteractivePet() {
 
         {/* Floating particles */}
         {particles.map((p) => (
-          <motion.div
-            key={p.id}
-            initial={{ opacity: 1, y: 0, scale: 0.4 }}
+          <motion.div key={p.id} initial={{ opacity: 1, y: 0, scale: 0.4 }}
             animate={{ opacity: 0, y: -70, scale: 1.4 }}
             transition={{ duration: 1, ease: 'easeOut' }}
             className="absolute pointer-events-none text-xl z-10"
@@ -679,11 +773,14 @@ export default function InteractivePet() {
             onCreated={({ gl }) => gl.setClearColor(0, 0)}
           >
             <PhysicsScene
-                emotion={emotion}
-                onSetEmotion={setEmotion}
-                onSpeech={doSpeech}
-                onDebug={() => {}}
-              />
+              emotion={emotion}
+              onSetEmotion={setEmotion}
+              onSpeech={doSpeech}
+              onSpawnParticle={spawnParticle}
+              onMood={doMood}
+              onSleep={setIsSleeping}
+              onDebug={() => {}}
+            />
           </Canvas>
         )}
       </div>
@@ -696,8 +793,15 @@ export default function InteractivePet() {
           transition={{ delay: 2 }}
           className="text-[10px] text-white/40 leading-relaxed text-right"
         >
-          <div>🐱 点击 = 敲它</div>
-          <div>🖱️ 拖拽 = 扔飞它</div>
+          {isSleeping ? (
+            <div>😴 睡着了... 点它叫醒</div>
+          ) : (
+            <>
+              <div>🐱 点击 = 敲它</div>
+              <div>🖱️ 拖拽 = 扔飞它</div>
+              <div>⏰ 30s不理 → 睡觉</div>
+            </>
+          )}
         </motion.div>
       </div>
     </>
