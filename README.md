@@ -25,6 +25,10 @@
 | 目录 | 定位 | 内容 |
 |------|------|------|
 | [`apps/`](#apps) | Web 应用 / CLI 工具 | Format Converter · Git Mirror |
+| `cli-tools/` | 纯命令行工具 | 待添加 |
+| `toys/` | 小型趣味玩具 | 待添加 |
+| `snippets/` | 可复用代码片段 | 待添加 |
+| `tests/` | 实验性/测试程序 | 待添加
 
 ---
 
@@ -85,6 +89,38 @@ git-mirror sync --all
 
 ---
 
+## cli-tools
+
+存放纯命令行工具的目录。每个工具是独立的 Python 包或脚本，通过命令行参数交互，适合自动化流程和 CI/CD 集成。
+
+> *待添加*
+
+---
+
+## toys
+
+小型趣味项目 / 创意玩具 / 一次性脚本。代码量小，功能独立，风格轻松。
+
+> *待添加*
+
+---
+
+## snippets
+
+可复用的代码片段和实用函数。按语言或用途分类存放，方便跨项目复制使用。
+
+> *待添加*
+
+---
+
+## tests
+
+实验性项目、技术验证（PoC）和临时测试程序。代码不保证稳定性，主要用于探索新技术。
+
+> *待添加*
+
+---
+
 ## 仓库结构
 
 ```
@@ -102,6 +138,10 @@ toolbox/
 │       ├── git_mirror/         #   Python 包
 │       ├── pyproject.toml
 │       └── README.md
+├── cli-tools/                  # 纯命令行工具（待添加）
+├── toys/                       # 小型趣味玩具（待添加）
+├── snippets/                   # 可复用代码片段（待添加）
+├── tests/                      # 实验性/测试程序（待添加）
 ├── resources/                  # 第三方声明
 ├── pyproject.toml
 ├── LICENSE
@@ -128,10 +168,10 @@ toolbox/
 
 ## 贡献新工具
 
-1. 在 `apps/` 下创建新目录
+1. 根据工具类型放入对应目录（`apps/`、`cli-tools/`、`toys/`）
 2. 按标准 Python 项目结构组织代码
 3. 提供独立的 `pyproject.toml`、`requirements.txt` 和 `README.md`
-4. 在本 README 的 apps 章节添加条目
+4. 在本 README 的对应章节添加条目并简要描述
 
 保持各工具**自包含**——不设统一的虚拟环境或全局依赖。
 
