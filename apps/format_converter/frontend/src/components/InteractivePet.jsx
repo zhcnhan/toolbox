@@ -376,7 +376,7 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       e.preventDefault()
       isDragging.current = true
       hasMoved.current = false
-      dragStartPos.current = { x: wp.x, y: wp.y }
+      dragStartPos.current = { x: e.clientX, y: e.clientY }  // 屏幕像素，避開世界坐标差异
       dragHistory.current = []
       petMesh.current?.squish?.(0.15)
       document.body.style.cursor = CURSORS.grabbing
@@ -389,11 +389,11 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       const wp = screenToWorld(e.clientX, e.clientY)
       if (!wp) return
 
-      // 用从按下点到当前点的总位移判断是否拖拽，兼容移动端手指抖动
+      // 用屏幕像素位移判断拖拽，跨设备一致
       if (dragStartPos.current) {
-        const totalDx = wp.x - dragStartPos.current.x
-        const totalDy = wp.y - dragStartPos.current.y
-        if (Math.hypot(totalDx, totalDy) > 0.08) hasMoved.current = true
+        const dx = e.clientX - dragStartPos.current.x
+        const dy = e.clientY - dragStartPos.current.y
+        if (Math.hypot(dx, dy) > 6) hasMoved.current = true  // > 6px 算拖拽
       }
 
       catPos.current.set(wp.x, wp.y, 0)
