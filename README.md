@@ -122,6 +122,7 @@ git-mirror sync --all
 ```
 toolbox/
 ├── apps/
+│   ├── README.md                                           # 应用目录概览
 │   └── format_converter/       # 万能格式转换 Web 服务
 │       ├── backend/            #   FastAPI 后端 + 转换引擎
 │       ├── frontend/           #   React 前端 + 3D 互动
@@ -131,6 +132,7 @@ toolbox/
 │       ├── DEPLOY.md
 │       └── README.md
 ├── cli-tools/
+│   ├── README.md                                           # 命令行工具概览
 │   └── git-mirror/             # Git 仓库双向镜像同步
 │       ├── git_mirror/         #   Python 包
 │       ├── pyproject.toml
