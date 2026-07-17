@@ -409,23 +409,29 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       isDragging.current = false
       e.stopPropagation()
 
-      if (hasMoved.current && dragHistory.current.length >= 2) {
-        // ═══ THROW ═══
-        const last = dragHistory.current[dragHistory.current.length - 1]
-        const first = dragHistory.current[0]
-        const dt = (last.t - first.t) / 1000
-        if (dt > 0.01 && dt < 0.5) {
-          const vx = (last.x - first.x) / dt
-          const vy = (last.y - first.y) / dt
-          catVel.current.set(vx * 0.5, vy * 0.5 + 2.5, 0)
+      if (hasMoved.current) {
+        // ═══ THROW (拖拽) ═══
+        // 可能只有 1 次 pointermove（手机快速拖拽），也有多次（桌面端慢拖）
+        if (dragHistory.current.length >= 2) {
+          const last = dragHistory.current[dragHistory.current.length - 1]
+          const first = dragHistory.current[0]
+          const dt = (last.t - first.t) / 1000
+          if (dt > 0.01 && dt < 0.5) {
+            const vx = (last.x - first.x) / dt
+            const vy = (last.y - first.y) / dt
+            catVel.current.set(vx * 0.5, vy * 0.5 + 2.5, 0)
+          } else {
+            catVel.current.set(0, 2.5, 0)
+          }
         } else {
+          // 拖拽记录不足 → 默认向上抛
           catVel.current.set(0, 2.5, 0)
         }
         throwingAt.current = performance.now()
         petMesh.current?.reset?.()
         onSpeechRef.current?.('咻—— 🚀')
         document.body.style.cursor = CURSORS.default
-      } else if (!hasMoved.current) {
+      } else {
         // ═══ TAP → STICK HIT ═══
         const wp = screenToWorld(e.clientX, e.clientY)
         const cx = catPos.current.x
