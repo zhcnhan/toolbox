@@ -378,8 +378,7 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
       hasMoved.current = false
       dragStartPos.current = { x: e.clientX, y: e.clientY }
       dragHistory.current = []
-      // 手机上阻止滚动和选中
-      document.body.style.touchAction = 'none'
+      // 手机：阻止页面选中（touch-action 由下面的 touchmove 拦截处理）
       document.body.style.userSelect = 'none'
       document.body.style.webkitUserSelect = 'none'
       petMesh.current?.squish?.(0.15)
@@ -409,10 +408,14 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
     }
 
     const _endDrag = () => {
-      document.body.style.touchAction = ''
       document.body.style.userSelect = ''
       document.body.style.webkitUserSelect = ''
       document.body.style.cursor = CURSORS.default
+    }
+
+    // 底层 touchmove 拦截 — 手机上阻止浏览器接管为滚动
+    const onTouchMove = (e) => {
+      if (isDragging.current) e.preventDefault()
     }
 
     const onUp = (e) => {
@@ -500,12 +503,14 @@ const PhysicsScene = React.forwardRef((props, _forwardedRef) => {
     window.addEventListener('pointermove', onMove, { capture: true, passive: false })
     window.addEventListener('pointerup', onUp, { capture: true })
     window.addEventListener('pointercancel', onCancel, { capture: true })
+    document.addEventListener('touchmove', onTouchMove, { passive: false })
 
     return () => {
       window.removeEventListener('pointerdown', onDown, { capture: true })
       window.removeEventListener('pointermove', onMove, { capture: true })
       window.removeEventListener('pointerup', onUp, { capture: true })
       window.removeEventListener('pointercancel', onCancel, { capture: true })
+      document.removeEventListener('touchmove', onTouchMove)
       document.body.style.cursor = ''
     }
   }, [screenToWorld])
