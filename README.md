@@ -81,10 +81,11 @@ docker compose up -d
 **功能亮点：**
 - ✂️ **7 引擎** — 本地 rembg/CLIPSeg + 云端 5 引擎
 - 🎚️ **CLIPSeg 灵敏度滑块** — 用户自由调节遮罩力度
+- 📦 **自动安装依赖** — 缺 torch 时后台自动安装 + 进度提示
 - 🌐 **代理支持** — HTTP 代理（含 Basic 认证），方便服务器走 VPN
 - 🔌 **插件式架构** — 新增引擎只需写一个 `*_engine.py` 文件
 - 📦 **批量处理** — 一次拖入多张图，逐张抠图，一键打包
-- 🍎 **macOS 原生支持** — `.app` 桌面应用 / PWA 添加到程序坞
+- 🍎 **macOS 原生支持** — `.command` 桌面启动器 / PWA 添加到程序坞
 - 🎀 **可爱界面** — 玻璃拟态深色主题，Framer Motion 动画
 
 ```bash
@@ -92,7 +93,7 @@ cd apps/batch_bg_remover
 # 一键部署（推荐）
 chmod +x deploy.sh && ./deploy.sh
 # macOS 原生运行
-bash make-mac-app.sh  # 生成桌面应用，之后双击图标即可
+bash make-mac-app.sh  # 生成桌面启动器，之后双击即可
 # 或手动启动
 python run.py
 ```

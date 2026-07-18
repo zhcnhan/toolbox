@@ -47,4 +47,4 @@ bash ~/Desktop/toolbox/apps/batch_bg_remover/make-mac-app.sh
 | Python 弹窗要输密码 | 自动安装 Python 需要权限 | 输入 Mac 开机密码就行，只这一次 |
 | 下载慢或失败 | 网络问题 | 如果有 VPN 就开一下，没有就多试几次 |
 | 打开后浏览器白屏 | 还没启动完 | 等终端出现 `http://localhost:5174` 就行了 |
-| CLIPSeg 抠图失败：No module named 'torch' | 默认没装 torch | 终端跑 `cd ~/Desktop/toolbox/apps/batch_bg_remover && source backend/venv/bin/activate && pip install torch -i https://pypi.tuna.tsinghua.edu.cn/simple` |
+| CLIPSeg 抠图失败：No module named 'torch' | 默认没装 torch | 网页上会弹出安装对话框，点「开始安装」自动后台下载；或终端跑 `cd ~/Desktop/toolbox/apps/batch_bg_remover && source backend/venv/bin/activate && pip install torch -i https://pypi.tuna.tsinghua.edu.cn/simple` |

@@ -10,6 +10,7 @@
 - ✂️ **提示词修正**：自动抠图不满意？输入文本提示词（如"左边的猫"）重新选取主体
 - 🎚️ **灵敏度调节**：CLIPSeg 本地引擎支持拖动滑块调节抠图灵敏度
 - ☁️ **7 个引擎可选**：rembg / CLIPSeg / Gemini / remove.bg / 擦个图 / Replicate / 自定义
+- 📦 **自动安装依赖**：选择 CLIPSeg 时自动检测 torch，缺失时后台安装 + 进度提示
 - 🔌 **插件式架构**：新增引擎只需写一个 `*_engine.py` 文件，自动发现注册
 - 📦 **批量处理**：一次拖入几十张图，逐张处理
 - 💾 **一键打包**：所有结果打包 ZIP 下载
@@ -191,6 +192,10 @@ class MyEngine(BaseEngine):
 | `POST` | `/api/remove-bg-prompt` | 提示词抠图（可选参数 `sensitivity` 调节灵敏度） |
 | `GET` | `/api/proxy` | 获取代理配置 |
 | `PUT` | `/api/proxy` | 更新代理配置（支持认证） |
+| `GET` | `/api/engine/clipseg_local/status` | 检查 CLIPSeg 模型缓存状态 |
+| `POST` | `/api/engine/clipseg_local/download` | 触发 CLIPSeg 模型下载 |
+| `GET` | `/api/engine/clipseg_local/deps-status` | 检查 CLIPSeg 依赖（torch）安装状态 |
+| `POST` | `/api/engine/clipseg_local/install-deps` | 触发 CLIPSeg 依赖安装 |
 | `GET` | `/api/download/{result_id}` | 下载单张结果 |
 | `GET` | `/api/download-zip?result_ids=...` | 打包下载 |
 
