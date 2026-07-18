@@ -35,7 +35,7 @@ jobs:
           uvicorn main:app --host 127.0.0.1 --port 8001 &
           sleep 3
           echo "=== Health ==="
-          curl -s -o /dev/null -w "Health: %{http_code}\n" http://127.0.0.1:8001/api/health
+          curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8001/api/health
           echo "=== Engines ==="
           curl -s http://127.0.0.1:8001/api/engines | python3 -c "import sys,json; d=json.load(sys.stdin); [print(f'  {e[\"id\"]:20} type={e[\"type\"]}') for e in d['engines']]"
 
@@ -64,8 +64,8 @@ jobs:
 
       - name: Verify build output
         run: |
-          ls -la dist/assets/*.js
-          echo "JS size: $(du -sh dist/assets/ | cut -f1)"
+          ls -la ../backend/static/assets/*.js
+          echo "Total JS size: $(du -sh ../backend/static/assets/ | cut -f1)"
 
   test-docker:
     name: Docker Build (macOS)
@@ -77,12 +77,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install Docker Compose v2
-        run: |
-          mkdir -p ~/.docker/cli-plugins
-          curl -sSL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o ~/.docker/cli-plugins/docker-compose
-          chmod +x ~/.docker/cli-plugins/docker-compose
-          docker compose version
+      - name: Setup Docker
+        uses: docker/setup-docker-action@v1
 
       - name: Build Docker image
         run: docker compose build
@@ -92,7 +88,7 @@ jobs:
 
       - name: Health check
         run: |
-          sleep 5
+          sleep 8
           curl -s -o /dev/null -w "Health: %{http_code}\n" http://127.0.0.1:8001/api/health
 
       - name: Test proxy API
