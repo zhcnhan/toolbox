@@ -1,7 +1,7 @@
 #!/bin/bash
 # =========================================================================
 # Batch Background Remover — macOS 一键启动
-# 用法: chmod +x start_mac.sh && ./start_mac.sh
+# 用法: chmod +x batch-bg-mac.sh && ./batch-bg-mac.sh
 # =========================================================================
 set -e
 
