@@ -32,31 +32,35 @@ cat > "$APP_DIR/Contents/Info.plist" << EOF
   <string>1.0</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
-  <key>LSUIElement</key>
-  <string>1</string>
 </dict>
 </plist>
 EOF
 
-# 启动脚本
+# 启动脚本 — 双击 .app 时 macOS 自动打开终端运行此脚本
 cat > "$APP_DIR/Contents/MacOS/launcher" << 'SCRIPT'
 #!/bin/bash
 DIR="$HOME/Desktop/toolbox/apps/batch_bg_remover"
 
-# 找不到就搜一下
 if [ ! -d "$DIR" ]; then
   DIR=$(find "$HOME" -maxdepth 4 -name "batch_bg_remover" -type d 2>/dev/null | head -1)
 fi
 
 if [ ! -d "$DIR" ]; then
-  osascript -e 'tell app "System Events" to display dialog "没找到 toolbox 项目，请把它放在桌面" buttons {"知道了"} default button 1 with icon stop'
+  echo "错误：没找到 toolbox 项目文件夹"
+  echo "请确认 ~/Desktop/toolbox/ 存在后重试"
+  read -p "按回车键退出..."
   exit 1
 fi
 
 cd "$DIR"
 
+echo "========================================"
+echo "  批量抠图 — 启动中..."
+echo "========================================"
+
 # 虚拟环境
 if [ ! -d "backend/venv" ]; then
+  echo "[1/3] 首次安装 Python 依赖..."
   python3 -m venv backend/venv
   source backend/venv/bin/activate
   pip install -r backend/requirements.txt -q -i https://pypi.tuna.tsinghua.edu.cn/simple
@@ -64,12 +68,13 @@ else
   source backend/venv/bin/activate
 fi
 
-# 前端依赖（使用国内镜像）
+# 前端依赖
 if [ ! -d "frontend/node_modules" ]; then
+  echo "[2/3] 首次安装前端依赖..."
   cd frontend && npm config set registry https://registry.npmmirror.com && npm install --silent && cd ..
 fi
 
-# 启动
+echo "[3/3] 启动服务..."
 cd backend && uvicorn main:app --host 127.0.0.1 --port 8001 &
 BACKEND=$!
 cd ../frontend && npm run dev -- --host 127.0.0.1 &
@@ -79,7 +84,12 @@ cd ..
 sleep 3
 open http://localhost:5174
 
-# 优雅退出
+echo ""
+echo "========================================"
+echo "  ✅ 启动完成！浏览器已打开"
+echo "  关闭此窗口即可停止服务"
+echo "========================================"
+
 trap "kill $BACKEND $FRONTEND 2>/dev/null; exit 0" SIGTERM SIGINT
 wait
 SCRIPT
