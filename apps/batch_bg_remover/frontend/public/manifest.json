@@ -1,0 +1,21 @@
+{
+  "name": "批量抠图",
+  "short_name": "抠图",
+  "description": "Batch Background Remover — 7引擎批量抠图工具",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f1a",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

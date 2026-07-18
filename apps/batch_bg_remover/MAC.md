@@ -61,10 +61,20 @@ chmod +x batch-bg-mac.sh
 
 ---
 
-## 五、下次再用
+## 五、下次再用（三种方式）
 
-打开终端，执行：
+**方式一（推荐）：双击 .app 图标**
+```bash
+# 只需执行一次，生成桌面应用
+cd ~/Desktop/toolbox/apps/batch_bg_remover
+bash make-mac-app.sh
+```
+之后双击桌面 `BatchBackgroundRemover.app` 就行，程序坞右键→退出关闭。
 
+**方式二（浏览器安装）：**
+Chrome/Safari 打开 `http://localhost:5174` 后，地址栏会出现安装按钮，点一下就能添加到程序坞。
+
+**方式三（终端）：**
 ```bash
 cd ~/Desktop/toolbox/apps/batch_bg_remover
 ./batch-bg-mac.sh
