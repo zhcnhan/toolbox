@@ -66,28 +66,33 @@ docker compose up -d
 
 ### Batch Background Remover
 
-批量抠图 Web 服务，6 引擎可选（本地 + 云端）。
+批量抠图 Web 服务，7 引擎可选（本地 + 云端）。
 
 | 引擎 | 类型 | 自动抠图 | 提示词分割 | 价格 |
 |------|------|:-------:|:---------:|------|
 | rembg | 本地 | ✅ | ❌ | 免费 |
-| CLIPSeg | 本地 | ❌ | ✅ | 免费 |
+| CLIPSeg 🆕 | 本地 | ❌ | ✅ | 免费（可选装 torch） |
 | remove.bg | 云端 | ✅ | ❌ | 50张/月免费 |
 | 擦个图 | 云端 | ✅ | ❌ | 0.1元/次 |
-| Gemini | 云端 | ✅ | ✅ | 有免费额度 |
+| Gemini | 云端 | ✅ | ✅ | Free Tier 有免费额度 |
+| Replicate | 云端 | ✅ | ✅ | ~$0.001/秒 |
 | 自定义 | 云端 | ✅ | ✅ | 取决于服务商 |
 
 **功能亮点：**
-- ✂️ **6 引擎** — 本地 rembg/CLIPSeg + 云端 remove.bg/擦个图/Gemini/自定义
-- 🔌 **插件式架构** — 新增引擎只需写一个 `*_engine.py` 文件，自动发现注册
-- 📦 **批量处理** — 一次拖入多张图，逐张抠图，一键打包下载
+- ✂️ **7 引擎** — 本地 rembg/CLIPSeg + 云端 5 引擎
+- 🎚️ **CLIPSeg 灵敏度滑块** — 用户自由调节遮罩力度
+- 🌐 **代理支持** — HTTP 代理（含 Basic 认证），方便服务器走 VPN
+- 🔌 **插件式架构** — 新增引擎只需写一个 `*_engine.py` 文件
+- 📦 **批量处理** — 一次拖入多张图，逐张抠图，一键打包
+- 🍎 **macOS 原生支持** — `.app` 桌面应用 / PWA 添加到程序坞
 - 🎀 **可爱界面** — 玻璃拟态深色主题，Framer Motion 动画
-- 📦 **多种部署** — Docker Compose / 手动 / Nginx + HTTPS / systemd
 
 ```bash
 cd apps/batch_bg_remover
-# Docker 方式
-docker compose up -d --build
+# 一键部署（推荐）
+chmod +x deploy.sh && ./deploy.sh
+# macOS 原生运行
+bash make-mac-app.sh  # 生成桌面应用，之后双击图标即可
 # 或手动启动
 python run.py
 ```
@@ -162,9 +167,13 @@ toolbox/
 │   │   ├── DEPLOY.md
 │   │   └── README.md
 │   └── batch_bg_remover/       # 批量抠图 Web 服务
-│       ├── backend/            #   FastAPI 后端 + 6 引擎
-│       ├── frontend/           #   React 前端
+│       ├── backend/            #   FastAPI 后端 + 7 引擎
+│       ├── frontend/           #   React 前端 + PWA 支持
 │       ├── run.py              #   一键启动脚本
+│       ├── deploy.sh           #   一键部署脚本（Docker）
+│       ├── batch-bg-mac.sh     #   macOS 一键启动脚本
+│       ├── make-mac-app.sh     #   生成 macOS .app 桌面应用
+│       ├── MAC.md              #   macOS 白痴教程
 │       ├── Dockerfile
 │       ├── docker-compose.yml
 │       ├── nginx.conf
