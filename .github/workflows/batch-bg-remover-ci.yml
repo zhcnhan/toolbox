@@ -9,6 +9,9 @@ on:
     paths:
       - "apps/batch_bg_remover/**"
 
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
+
 jobs:
   test-backend:
     name: Backend (Python)
@@ -77,8 +80,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Setup Docker
-        uses: docker/setup-docker-action@v1
+      - name: Install Docker Compose v2 plugin
+        run: |
+          docker --version
+          mkdir -p ~/.docker/cli-plugins
+          curl -sSL "https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-$(uname -s)-$(uname -m)" -o ~/.docker/cli-plugins/docker-compose
+          chmod +x ~/.docker/cli-plugins/docker-compose
+          docker compose version
 
       - name: Build Docker image
         run: docker compose build
@@ -93,4 +101,4 @@ jobs:
 
       - name: Test proxy API
         run: |
-          curl -s http://127.0.0.1:8001/api/proxy | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Proxy API: OK')"
+          curl -s http://127.0.0.1:8001/api/proxy | python3 -c "import sys,json; d=json.load(sys.stdin); print('Proxy API: OK')"
