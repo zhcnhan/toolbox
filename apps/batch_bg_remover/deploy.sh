@@ -31,10 +31,16 @@ echo "  不装不影响核心抠图功能，用 rembg 本地引擎即可"
 read -p "是否启用？[y/N] (默认不装): " enable_clipseg
 if [[ "$enable_clipseg" =~ ^[Yy]$ ]]; then
     CLIPSEG_ARG="--build-arg INSTALL_CLIPSEG=true"
+    # 询问是否使用 HuggingFace 国内镜像（国内用户建议开启）
+    read -p "是否使用 HuggingFace 国内镜像加速下载？(国内服务器推荐) [y/N]: " use_mirror
+    if [[ "$use_mirror" =~ ^[Yy]$ ]]; then
+        CLIPSEG_ARG="$CLIPSEG_ARG --build-arg HF_ENDPOINT=https://hf-mirror.com"
+        echo "[OK] 已启用国内镜像 (hf-mirror.com)"
+    fi
     echo "[OK] CLIPSeg 已启用 (构建时预下载模型，首次提示词分割即开即用)"
 else
     CLIPSEG_ARG=""
-    echo "[OK] CLIPSeg 未启用 (随时可重建开启：docker compose build --build-arg INSTALL_CLIPSEG=true)"
+    echo "[OK] CLIPSeg 未启用 (随时可重建：docker compose build --build-arg INSTALL_CLIPSEG=true)"
 fi
 
 # 确保数据目录

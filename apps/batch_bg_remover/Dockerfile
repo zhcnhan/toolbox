@@ -52,18 +52,23 @@ RUN echo "[Docker] Pre-caching rembg model..." && \
 # CLIPSeg 引擎依赖（可选，体积大 ~800MB）
 # 默认不装。需要时用 --build-arg INSTALL_CLIPSEG=true 启用
 ARG INSTALL_CLIPSEG=false
+# 国内用户可设置 --build-arg HF_ENDPOINT=https://hf-mirror.com 加速模型下载
+ARG HF_ENDPOINT=""
 RUN if [ "$INSTALL_CLIPSEG" = "true" ]; then \
         echo "[Docker] Installing CLIPSeg deps (torch + transformers)..."; \
         pip install --no-cache-dir torch transformers && \
-        echo "[Docker] Pre-caching CLIPSeg model (CIDAS/clipseg-rd64-refined)..."; \
+        echo "[Docker] Pre-caching CLIPSeg model..."; \
+        HF_ENDPOINT="${HF_ENDPOINT:-https://huggingface.co}" \
         python3 -c "\
-import os; os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING']='1'; \
+import os; \
+os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'; \
+print(f'[Docker] Downloading from: {os.environ.get(\"HF_ENDPOINT\", \"https://huggingface.co\")}'); \
 from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation; \
-CLIPSegProcessor.from_pretrained('CIDAS/clipseg-rd64-refined'); \
-CLIPSegForImageSegmentation.from_pretrained('CIDAS/clipseg-rd64-refined')\
+CLIPSegProcessor.from_pretrained('CIDAS/clipseg-rd64-refined', local_files_only=False); \
+CLIPSegForImageSegmentation.from_pretrained('CIDAS/clipseg-rd64-refined', local_files_only=False)\
 "; \
     else \
-        echo "[Docker] Skipping CLIPSeg deps (INSTALL_CLIPSEG=false). CLIPSeg engine will not be available."; \
+        echo "[Docker] Skipping CLIPSeg deps (INSTALL_CLIPSEG=false)."; \
     fi
 
 # 复制后端代码
