@@ -14,12 +14,12 @@ cd ~/Desktop && git clone https://gitee.com/gengzisama/toolbox.git
 bash ~/Desktop/toolbox/apps/batch_bg_remover/make-mac-app.sh
 ```
 
-等跑完，桌面出现 `BatchBackgroundRemover.app`。
+等跑完，桌面出现「批量抠图.command」。
 
 ## 使用
 
-- **打开**：双击桌面图标
-- **关闭**：程序坞右键 → 退出
+- **打开**：双击「批量抠图.command」
+- **关闭**：关掉弹出的终端窗口
 - **首次**会自动装依赖，等 2-3 分钟，之后秒开
 
 ## 常见问题
