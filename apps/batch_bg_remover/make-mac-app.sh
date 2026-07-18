@@ -84,6 +84,8 @@ if [ ! -d "backend/venv" ]; then
   # 多镜像轮询
   U2NET_URLS=(
     "https://hf-mirror.com/datasets/heng881/rembg-model/resolve/main/u2net.onnx"
+    "https://ghproxy.net/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
+    "https://gh-proxy.com/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
     "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
   )
   U2NET_OK=0
@@ -113,16 +115,23 @@ if [ ! -d "backend/venv" ]; then
     echo "→ 下载 CLIPSeg 模型中..."
     # 确保 huggingface_hub 已安装（轻量，下载模型用）
     pip install -q huggingface-hub -i https://pypi.tuna.tsinghua.edu.cn/simple 2>/dev/null
-    export HF_ENDPOINT=https://hf-mirror.com
-    "$BASE/backend/venv/bin/python3" -c "
+    # 多镜像轮询
+    for HF_MIRROR in "https://hf-mirror.com" "https://huggingface.co"; do
+      echo "  尝试镜像: $HF_MIRROR"
+      export HF_ENDPOINT="$HF_MIRROR"
+      "$BASE/backend/venv/bin/python3" -c "
 from huggingface_hub import snapshot_download
 import os
 os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
-os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+os.environ['HF_ENDPOINT'] = '$HF_MIRROR'
 print('正在下载 CLIPSeg 模型（CIDAS/clipseg-rd64-refined）...')
-snapshot_download('CIDAS/clipseg-rd64-refined')
+snapshot_download('CIDAS/clipseg-rd64-refined', max_retries=2)
 print('✅ CLIPSeg 模型下载完成')
-" 2>&1 || echo "  ⚠ 下载失败，首次使用时自动重试"
+" 2>&1 && { CLIPSEG_OK=1; break; } || echo "  ⚠ 镜像 $HF_MIRROR 失败，换下一个"
+    done
+    if [ "${CLIPSEG_OK:-0}" -eq 0 ]; then
+      echo "  ⚠ 所有镜像都失败，首次使用时自动重试"
+    fi
   else
     echo "  已跳过，首次使用 CLIPSeg 时会自动下载"
   fi

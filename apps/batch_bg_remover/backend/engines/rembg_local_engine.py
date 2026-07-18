@@ -16,9 +16,13 @@ from engine_registry import register_engine
 
 
 _U2NET_MIRRORS = [
-    # 国内镜像（优先）
+    # 1. HuggingFace 国内镜像（优先）
     "https://hf-mirror.com/datasets/heng881/rembg-model/resolve/main/u2net.onnx",
-    # 原始 GitHub（国内可能被墙，作为兜底）
+    # 2. GitHub 代理镜像1
+    "https://ghproxy.net/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx",
+    # 3. GitHub 代理镜像2
+    "https://gh-proxy.com/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx",
+    # 4. GitHub 官方源（兜底，国内可能被墙）
     "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx",
 ]
 
