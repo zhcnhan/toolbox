@@ -33,7 +33,6 @@ STATIC_DIR = BACKEND_DIR / "static"
 def build_frontend():
     """构建前端静态文件到 backend/static/"""
     print("[Build] 构建前端静态文件...")
-    npm = os.environ.get("npm_execpath", "npm")
     # 优先用 node 直接调 vite，避免 npm 的开销
     vite_bin = FRONTEND_DIR / "node_modules" / "vite" / "bin" / "vite.js"
     if vite_bin.exists():
@@ -54,8 +53,8 @@ def check_clipseg_deps():
     未安装时提示用户是否要安装（体积大，可选）。
     """
     try:
-        import torch  # noqa: F401
-        import transformers  # noqa: F401
+        import torch  # type: ignore  # noqa: F401
+        import transformers  # type: ignore  # noqa: F401
         return True  # 已安装
     except ImportError:
         pass
@@ -182,8 +181,7 @@ def main():
         return
 
     # 检测 CLIPSeg 依赖（可选，体积大，提示用户）
-    if not args.dev or True:  # 开发和生产模式都检测
-        check_clipseg_deps()
+    check_clipseg_deps()
 
     if args.dev:
         run_dev(args.port)
