@@ -26,4 +26,4 @@ bash ~/Desktop/toolbox/apps/batch_bg_remover/make-mac-app.sh
 | `command not found: brew` | 没装 Homebrew | 先跑 `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
 | `command not found: git` | 没装 Git | 去 https://git-scm.com/download/mac 下载安装 |
 | 打开后浏览器白屏 | 还没启动完 | 等终端出现 `http://localhost:5174` 就行了 |
-| 抠图失败：No module named 'torch' | 没启用 CLIPSeg | 引擎切回 rembg 就行 |
+| 抠图失败：No module named 'torch' | CLIPSeg 需要 torch，默认没装 | 终端里跑 `source backend/venv/bin/activate && pip install torch` |
