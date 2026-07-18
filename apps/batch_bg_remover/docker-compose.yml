@@ -15,8 +15,8 @@ services:
       dockerfile: Dockerfile
       args:
         # 是否安装 CLIPSeg 依赖（torch+transformers，约800MB）
-        # 改为 true 启用 CLIPSeg 提示词分割引擎
-        INSTALL_CLIPSEG: "false"
+        # deploy.sh 会将选择写入 .env，下次重建自动沿用
+        INSTALL_CLIPSEG: "${INSTALL_CLIPSEG:-false}"
     container_name: batch-bg-remover
     ports:
       - "${PORT:-8001}:8001"
