@@ -9,16 +9,11 @@ on:
     paths:
       - "apps/batch_bg_remover/**"
 
-env:
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
-
 jobs:
-  test-backend:
-    name: Backend (Python)
+  # macOS: 验证原生运行（不用 Docker）
+  test-macos-native:
+    name: macOS Native
     runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: apps/batch_bg_remover/backend
 
     steps:
       - uses: actions/checkout@v5
@@ -30,27 +25,17 @@ jobs:
           cache: "pip"
           cache-dependency-path: apps/batch_bg_remover/backend/requirements.txt
 
-      - name: Install dependencies
+      - name: Backend - install deps
+        working-directory: apps/batch_bg_remover/backend
         run: pip install -r requirements.txt
 
-      - name: Start server & health check
+      - name: Backend - start server & health check
+        working-directory: apps/batch_bg_remover/backend
         run: |
           uvicorn main:app --host 127.0.0.1 --port 8001 &
           sleep 3
-          echo "=== Health ==="
-          curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8001/api/health
-          echo "=== Engines ==="
-          curl -s http://127.0.0.1:8001/api/engines | python3 -c "import sys,json; d=json.load(sys.stdin); [print(f'  {e[\"id\"]:20} type={e[\"type\"]}') for e in d['engines']]"
-
-  test-frontend:
-    name: Frontend (Node)
-    runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: apps/batch_bg_remover/frontend
-
-    steps:
-      - uses: actions/checkout@v5
+          curl -s -o /dev/null -w "Health: %{http_code}\n" http://127.0.0.1:8001/api/health
+          curl -s http://127.0.0.1:8001/api/engines | python3 -c "import sys,json; d=json.load(sys.stdin); [print(f'  {e[\"id\"]}') for e in d['engines']]"
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -59,20 +44,18 @@ jobs:
           cache: "npm"
           cache-dependency-path: apps/batch_bg_remover/frontend/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Verify build output
+      - name: Frontend - install & build
+        working-directory: apps/batch_bg_remover/frontend
         run: |
+          npm ci
+          npm run build
           ls -la ../backend/static/assets/*.js
-          echo "Total JS size: $(du -sh ../backend/static/assets/ | cut -f1)"
+          echo "OK: $(du -sh ../backend/static/assets/ | cut -f1)"
 
+  # Linux Docker: 验证容器化部署（镜像与 macOS Docker Desktop 通用）
   test-docker:
-    name: Docker (macOS)
-    runs-on: macos-latest
+    name: Docker
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/batch_bg_remover
@@ -80,27 +63,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install & start Docker via Colima
+      - name: Build & start
         run: |
-          brew install docker docker-compose colima
-          colima start --cpu 2 --memory 4
-          echo "Docker ready: $(docker --version)"
+          docker compose build
+          docker compose up -d
 
-      - name: Build Docker image
-        run: docker compose build
-
-      - name: Start container
-        run: docker compose up -d
-
-      - name: Health check
+      - name: Verify
         run: |
-          sleep 8
+          sleep 5
           curl -s -o /dev/null -w "Health: %{http_code}\n" http://127.0.0.1:8001/api/health
-
-      - name: Test proxy API
-        run: |
-          curl -s http://127.0.0.1:8001/api/proxy | python3 -c "import sys,json; d=json.load(sys.stdin); print('Proxy API: OK')"
-
-      - name: Cleanup
-        if: always()
-        run: colima stop
+          curl -s http://127.0.0.1:8001/api/proxy | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Proxy: OK')"
+          curl -s http://127.0.0.1:8001/api/engines | python3 -c "import sys,json; print(f'Engines: {len(json.load(sys.stdin)[\"engines\"])}')"
