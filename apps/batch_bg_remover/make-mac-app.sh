@@ -59,14 +59,14 @@ cd "$DIR"
 if [ ! -d "backend/venv" ]; then
   python3 -m venv backend/venv
   source backend/venv/bin/activate
-  pip install -r backend/requirements.txt -q
+  pip install -r backend/requirements.txt -q -i https://pypi.tuna.tsinghua.edu.cn/simple
 else
   source backend/venv/bin/activate
 fi
 
-# 前端依赖
+# 前端依赖（使用国内镜像）
 if [ ! -d "frontend/node_modules" ]; then
-  cd frontend && npm install --silent && cd ..
+  cd frontend && npm config set registry https://registry.npmmirror.com && npm install --silent && cd ..
 fi
 
 # 启动
