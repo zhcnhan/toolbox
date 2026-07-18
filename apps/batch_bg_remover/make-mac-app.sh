@@ -39,6 +39,15 @@ if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
   exit 1
 fi
 
+# 检查 Python 版本（需要 >=3.10）
+PY_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "0.0")
+if [ "$(echo "$PY_VERSION" | cut -d. -f1)" -lt 3 ] || [ "$(echo "$PY_VERSION" | cut -d. -f1)" -eq 3 -a "$(echo "$PY_VERSION" | cut -d. -f2)" -lt 10 ]; then
+  echo "[错误] 需要 Python 3.10 或更高版本（当前: $PY_VERSION）"
+  echo "去 https://www.python.org/downloads/ 下载安装 Python 3.12"
+  echo "装完重新双击本图标即可"
+  exit 1
+fi
+
 # 虚拟环境
 if [ ! -d "backend/venv" ]; then
   echo "[1/3] 首次安装 Python 依赖..."
