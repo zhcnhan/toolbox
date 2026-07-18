@@ -15,29 +15,60 @@ from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
 
 
+_U2NET_MIRRORS = [
+    # 国内镜像（优先）
+    "https://hf-mirror.com/datasets/heng881/rembg-model/resolve/main/u2net.onnx",
+    # 原始 GitHub（国内可能被墙，作为兜底）
+    "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx",
+]
+
+
 def _ensure_u2net_model():
     """
     确保 U2Net 模型已下载。
-    如果 ~/.u2net/u2net.onnx 不存在，从国内镜像预下载，
-    避免 rembg 首次使用时从 GitHub 下载超时。
+    从多个镜像依次尝试下载，全部失败则让 rembg 自己处理。
     """
     model_dir = Path.home() / ".u2net"
     model_path = model_dir / "u2net.onnx"
-    if model_path.exists() and model_path.stat().st_size > 1_000_000:
-        return True  # 已存在
+    if model_path.exists() and model_path.stat().st_size > 50_000_000:
+        return True  # 已存在（u2net.onnx 约 176MB）
 
     model_dir.mkdir(parents=True, exist_ok=True)
-    mirror_url = "https://hf-mirror.com/datasets/heng881/rembg-model/resolve/main/u2net.onnx"
 
     import urllib.request
-    try:
-        print(f"[rembg] 正在从镜像下载 U2Net 模型...")
-        urllib.request.urlretrieve(mirror_url, str(model_path))
-        print(f"[rembg] 模型下载完成 ({model_path.stat().st_size / 1024 / 1024:.0f}MB)")
-        return True
-    except Exception as e:
-        print(f"[rembg] 镜像下载失败 ({e})，rembg 将尝试官方源")
-        return False
+
+    for i, url in enumerate(_U2NET_MIRRORS):
+        try:
+            print(f"[rembg] 正在下载 U2Net 模型 ({i+1}/{len(_U2NET_MIRRORS)})...")
+            # 设置超时：60s 连接 + 600s 传输
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=(60, 600)) as resp:
+                total = int(resp.headers.get("Content-Length", 0))
+                downloaded = 0
+                with open(model_path, "wb") as f:
+                    while True:
+                        chunk = resp.read(8192)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total > 0:
+                            pct = int(downloaded / total * 100)
+                            if pct % 25 == 0:
+                                print(f"[rembg]   {pct}% ({downloaded/1024/1024:.0f}MB)")
+            size = model_path.stat().st_size
+            if size > 50_000_000:
+                print(f"[rembg] ✅ 模型下载完成 ({size/1024/1024:.0f}MB)")
+                return True
+            else:
+                model_path.unlink(missing_ok=True)
+                print(f"[rembg] ⚠ 下载文件太小 ({size} bytes)，尝试下一个源")
+        except Exception as e:
+            print(f"[rembg] ⚠ 源 {i+1} 失败: {type(e).__name__}")
+            model_path.unlink(missing_ok=True)
+
+    print(f"[rembg] ❌ 所有镜像都失败，rembg 将尝试官方源")
+    return False
 
 
 def _safe_import_rembg():
