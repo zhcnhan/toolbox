@@ -94,7 +94,7 @@ if [ ! -d "backend/venv" ]; then
   if [[ "$dl_clipseg" =~ ^[Yy]$ ]]; then
     echo "→ 下载 CLIPSeg 模型中..."
     export HF_ENDPOINT=https://hf-mirror.com
-    python3 -c "
+    "$BASE/backend/venv/bin/python3" -c "
 from huggingface_hub import snapshot_download
 import os
 os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
