@@ -44,7 +44,7 @@ bash ~/Desktop/toolbox/apps/batch_bg_remover/make-mac-app.sh
 |------|------|------|
 | `command not found: git` | 没装 Git | 去 https://git-scm.com/download/mac 下载安装 |
 | `command not found: npm` | 没装 Node.js | 去 https://nodejs.org 下载 macOS 安装包 |
-| Python 报错 `TypeError: unsupported operand type(s)` | 系统 Python 版本太低 | 去 https://www.python.org/downloads/ 下载 Python 3.12 安装，装完重新双击启动 |
+| Python 弹窗要输密码 | 自动安装 Python 需要权限 | 输入 Mac 开机密码就行，只这一次 |
 | 下载慢或失败 | 网络问题 | 如果有 VPN 就开一下，没有就多试几次 |
 | 打开后浏览器白屏 | 还没启动完 | 等终端出现 `http://localhost:5174` 就行了 |
 | CLIPSeg 抠图失败：No module named 'torch' | 默认没装 torch | 终端跑 `cd ~/Desktop/toolbox/apps/batch_bg_remover && source backend/venv/bin/activate && pip install torch -i https://pypi.tuna.tsinghua.edu.cn/simple` |

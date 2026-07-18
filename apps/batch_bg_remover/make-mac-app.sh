@@ -39,13 +39,36 @@ if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
   exit 1
 fi
 
-# 检查 Python 版本（需要 >=3.10）
-PY_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "0.0")
-if [ "$(echo "$PY_VERSION" | cut -d. -f1)" -lt 3 ] || [ "$(echo "$PY_VERSION" | cut -d. -f1)" -eq 3 -a "$(echo "$PY_VERSION" | cut -d. -f2)" -lt 10 ]; then
-  echo "[错误] 需要 Python 3.10 或更高版本（当前: $PY_VERSION）"
-  echo "去 https://www.python.org/downloads/ 下载安装 Python 3.12"
-  echo "装完重新双击本图标即可"
-  exit 1
+# 检查 Python 版本（需要 >=3.10，不够则自动安装）
+PY3=$(command -v python3)
+PY_VER=$("$PY3" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "0.0")
+PY_MAJOR=$(echo "$PY_VER" | cut -d. -f1)
+PY_MINOR=$(echo "$PY_VER" | cut -d. -f2)
+
+if [ "$PY_MAJOR" -lt 3 ] || [ "$PY_MAJOR" -eq 3 -a "$PY_MINOR" -lt 10 ]; then
+  echo ""
+  echo "============================================"
+  echo "  需要 Python 3.10+（当前: $PY_VER）"
+  echo "  正在自动下载安装 Python 3.12 ..."
+  echo "============================================"
+  echo ""
+
+  # 下载 Python 3.12 安装包（python.org 国内可访问）
+  curl -L -o /tmp/python3.pkg "https://www.python.org/ftp/python/3.12.9/python-3.12.9-macos11.pkg"
+
+  # 静默安装
+  echo "正在安装，可能需要输入密码..."
+  sudo installer -pkg /tmp/python3.pkg -target /
+  rm -f /tmp/python3.pkg
+
+  # 重新定位 Python
+  PY3="/usr/local/bin/python3"
+  if [ ! -f "$PY3" ]; then
+    PY3="/Library/Frameworks/Python.framework/Versions/3.12/bin/python3"
+  fi
+
+  echo ""
+  echo "✅ Python 3.12 安装完成！"
 fi
 
 # 虚拟环境
