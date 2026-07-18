@@ -3,9 +3,8 @@ engines/gemini_engine.py — Google Gemini 云端引擎
 
 使用 Gemini API 进行抠图和文本提示词分割。
 支持图像生成的模型（按优先级尝试）：
-  1. gemini-2.5-flash-image  (稳定版图像生成)
-  2. gemini-3.1-flash-image  (较新)
-  3. gemini-3-pro-image      (高质量)
+  1. gemini-2.5-flash  (Free Tier，有免费额度，无需绑卡)
+  2. gemini-2.5-pro    (付费版，质量更高)
 
 用户需要在 https://aistudio.google.com/apikey 获取 API Key。
 安装依赖：pip install requests
@@ -19,10 +18,8 @@ from proxy import get_proxies_for_requests
 
 # 图像生成模型，按优先级排列
 _IMAGE_MODELS = [
-    "gemini-2.5-flash-image",
-    "gemini-3.1-flash-image",
-    "gemini-3-pro-image",
-    "gemini-3-pro-image-preview",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
 ]
 
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
