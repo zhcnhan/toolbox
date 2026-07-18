@@ -88,44 +88,34 @@ chmod +x "$APP_DIR/Contents/MacOS/launcher"
 
 # 用 Python 生成一个简单的应用图标
 python3 << 'PYTHON'
-import struct, zlib, math, os
+import struct, zlib, os
 
-def create_png(w, h, pixels):
-    def cid(type_, data):
-        c = type_ + data
-        return struct.pack('>I', len(data)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
+def make_png(w, h, get_pixel):
+    def ch(t, d):
+        c = t + d
+        return struct.pack('>I', len(d)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
     raw = b''
     for y in range(h):
         raw += b'\x00'
         for x in range(w):
-            i = (y * w + x) * 4
-            raw += bytes(pixels[i:i+4])
-    return (b'\x89PNG\r\n\x1a\n' +
-            cid(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)) +
-            cid(b'IDAT', zlib.compress(raw)) +
-            cid(b'IEND', b''))
+            r, g, b, a = get_pixel(x, y)
+            raw += bytes([max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)), max(0, min(255, a))])
+    return (b'\x89PNG\r\n\x1a\n' + ch(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0))
+            + ch(b'IDAT', zlib.compress(raw)) + ch(b'IEND', b''))
 
-w, h = 128, 128
-px = []
-for y in range(h):
-    for x in range(w):
-        dx, dy = x - 64, y - 64
-        d = math.sqrt(dx*dx + dy*dy)
-        if d < 30:
-            r, g, b, a = 255, 255, 255, 255
-        elif d < 42:
-            t = (math.atan2(dy, dx) + math.pi) / (2 * math.pi)
-            r = int(59 + 30 * math.sin(t * 6))
-            g = int(130 + 30 * math.cos(t * 4))
-            b = int(246 + 30 * math.sin(t * 5))
-            a = 255
-        else:
-            r, g, b, a = 0, 0, 0, 0
-        px.extend([r, g, b, a])
+def pixel(x, y):
+    cx, cy = 64, 64
+    d = ((x - cx)**2 + (y - cy)**2) ** 0.5
+    if d < 30:
+        return (255, 255, 255, 255)
+    if d < 42:
+        return (99, 102, 241, 255)
+    return (0, 0, 0, 0)
 
+data = make_png(128, 128, pixel)
 icon_dir = os.path.expanduser("~/Desktop/BatchBackgroundRemover.app/Contents/Resources")
 with open(f"{icon_dir}/icon.png", "wb") as f:
-    f.write(create_png(w, h, px))
+    f.write(data)
 os.system(f"sips -s format icns '{icon_dir}/icon.png' --out '{icon_dir}/icon.icns' 2>/dev/null || true")
 PYTHON
 
