@@ -118,14 +118,16 @@ class CLIPSegLocalEngine(BaseEngine):
         mask = F.interpolate(preds, size=(orig_size[1], orig_size[0]), mode="bilinear", align_corners=False)
         mask = torch.sigmoid(mask[0, 0]).cpu().numpy()
 
-        # 自动拉伸 mask 对比度：将 [min, max] 映射到 [0, 1]
-        # 避免提示词不匹配时 sigmoid 输出值过低导致全透明
+        # 自动拉伸 mask 对比度
         lo, hi = mask.min(), mask.max()
         if hi - lo > 0.05:
             mask = (mask - lo) / (hi - lo)
-        # 阈值 0.3 二值化，作为 alpha 通道
+        # 用百分比拉伸：取 85% 分位值作为白色，50% 以下直接变透明
+        p85 = np.percentile(mask, 85)
+        p50 = np.percentile(mask, 50)
+        mask = np.clip((mask - p50) / (p85 - p50 + 1e-8), 0, 1)
+        # 作为 alpha 通道
         mask_uint8 = (mask * 255).astype(np.uint8)
-        mask_uint8 = np.where(mask_uint8 < 76, 0, mask_uint8)  # 0.3 threshold
 
         # 合成 RGBA 图片
         rgba = np.array(image.convert("RGBA"))
