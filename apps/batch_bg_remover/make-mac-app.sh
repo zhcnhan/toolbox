@@ -110,6 +110,12 @@ else
   source backend/venv/bin/activate
 fi
 
+# 确保 huggingface_hub 已安装（CLIPSeg 下载模型用，轻量）
+if ! "$BASE/backend/venv/bin/python3" -c "import huggingface_hub" 2>/dev/null; then
+  echo "→ 安装 huggingface_hub..."
+  pip install huggingface-hub -q -i https://pypi.tuna.tsinghua.edu.cn/simple
+fi
+
 # 前端依赖
 if [ ! -d "frontend/node_modules" ]; then
   echo "[2/3] 首次安装前端依赖..."
