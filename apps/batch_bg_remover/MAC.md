@@ -7,8 +7,13 @@
 打开「终端」App，一行一行复制执行：
 
 ```bash
-# 装 Homebrew（已换国内源，不用翻墙）
-/bin/bash -c "$(curl -fsSL https://gitee.com/ineo6/homebrew-install/raw/master/install.sh)"
+# 装 Homebrew（官方脚本，装完自动换清华源）
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# 装完跑这三行，换成国内源，以后安装飞快
+export HOMEBREW_BREW_GIT_REMOTE="https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/brew.git"
+export HOMEBREW_CORE_GIT_REMOTE="https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/homebrew-core.git"
+brew update
 
 # 装 Node.js（提供 npm 命令）
 brew install node
