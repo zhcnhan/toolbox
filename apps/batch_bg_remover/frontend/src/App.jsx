@@ -49,7 +49,7 @@ export default function App() {
   const [promptTarget, setPromptTarget] = useState(null);  // 正在修正的图片
 
   // 代理配置（从服务器加载，持久化在服务端）
-  const [proxyConfig, setProxyConfig] = useState({ enabled: false, url: '' });
+  const [proxyConfig, setProxyConfig] = useState({ enabled: false, url: '', auth_type: 'none', username: '', password: '' });
 
   // 加载引擎列表和代理配置
   useEffect(() => {
@@ -58,8 +58,8 @@ export default function App() {
   }, []);
 
   // 保存代理配置到服务器
-  const handleProxySave = useCallback(async (enabled, url) => {
-    const result = await updateProxyConfig(enabled, url);
+  const handleProxySave = useCallback(async (enabled, url, authType = 'none', username = '', password = '') => {
+    const result = await updateProxyConfig(enabled, url, authType, username, password);
     setProxyConfig(result.config);
   }, []);
 

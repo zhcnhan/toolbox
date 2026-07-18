@@ -83,18 +83,24 @@ function ProxySettings({ proxyConfig, onProxySave }) {
   const [editing, setEditing] = useState(false);
   const [url, setUrl] = useState(proxyConfig?.url || '');
   const [enabled, setEnabled] = useState(proxyConfig?.enabled || false);
+  const [authType, setAuthType] = useState(proxyConfig?.auth_type || 'none');
+  const [username, setUsername] = useState(proxyConfig?.username || '');
+  const [password, setPassword] = useState(proxyConfig?.password || '');
   const [saving, setSaving] = useState(false);
 
   // 当外部 proxyConfig 变化时同步
   useEffect(() => {
     setUrl(proxyConfig?.url || '');
     setEnabled(proxyConfig?.enabled || false);
+    setAuthType(proxyConfig?.auth_type || 'none');
+    setUsername(proxyConfig?.username || '');
+    setPassword(proxyConfig?.password || '');
   }, [proxyConfig]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onProxySave(enabled, url);
+      await onProxySave(enabled, url, authType, username, password);
       setEditing(false);
     } catch (e) {
       alert('保存失败: ' + e.message);
@@ -110,7 +116,7 @@ function ProxySettings({ proxyConfig, onProxySave }) {
           <span className="text-sm font-semibold text-white/60">🔗 代理设置</span>
           <span className="ml-2 text-xs text-white/30">
             {proxyConfig?.enabled && proxyConfig?.url
-              ? `已启用 · ${proxyConfig.url}`
+              ? `已启用 · ${proxyConfig.url}${proxyConfig?.auth_type === 'basic' ? ' (带认证)' : ''}`
               : '未启用（直连）'}
           </span>
         </div>
@@ -163,8 +169,60 @@ function ProxySettings({ proxyConfig, onProxySave }) {
           />
         </div>
 
+        {/* 认证方式 */}
+        {enabled && (
+          <div>
+            <label className="text-xs text-white/50 block mb-1">认证方式</label>
+            <div className="flex gap-2">
+              {[
+                { value: 'none', label: '无认证' },
+                { value: 'basic', label: 'Basic 认证' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  className={`px-3 py-1.5 rounded-lg text-xs transition-all ${
+                    authType === opt.value
+                      ? 'bg-accent-blue/20 text-accent-blue border border-accent-blue/30'
+                      : 'bg-white/5 text-white/40 border border-white/10'
+                  }`}
+                  onClick={() => setAuthType(opt.value)}
+                  disabled={!enabled}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Basic 认证字段 */}
+        {enabled && authType === 'basic' && (
+          <>
+            <div>
+              <label className="text-xs text-white/50 block mb-1">用户名</label>
+              <input
+                type="text"
+                className="input-field text-sm"
+                placeholder="代理用户名"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-white/50 block mb-1">密码</label>
+              <input
+                type="password"
+                className="input-field text-sm"
+                placeholder="代理密码"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+          </>
+        )}
+
         <p className="text-white/30 text-xs leading-relaxed">
-          针对服务器部署场景：部分云服务器可能限制访问国外 API，可通过 HTTP 代理转发流量。支持 Clash / V2Ray 等本地代理。
+          针对服务器部署场景：部分云服务器可能限制访问国外 API，可通过 HTTP 代理转发流量。支持 Clash / V2Ray 等本地代理，及带 Basic 认证的企业代理。
         </p>
 
         <button

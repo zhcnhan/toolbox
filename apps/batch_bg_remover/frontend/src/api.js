@@ -77,10 +77,13 @@ export async function getProxyConfig() {
   return await res.json();
 }
 
-export async function updateProxyConfig(enabled, url) {
+export async function updateProxyConfig(enabled, url, authType = 'none', username = '', password = '') {
   const form = new FormData();
   form.append('enabled', enabled);
   form.append('url', url);
+  form.append('auth_type', authType);
+  form.append('username', username);
+  form.append('password', password);
   const res = await fetch(`${BASE}/proxy`, { method: 'PUT', body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

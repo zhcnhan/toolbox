@@ -7,7 +7,10 @@ proxy.py — 全局代理配置管理
 格式：
 {
     "enabled": false,
-    "url": "http://127.0.0.1:7890"
+    "url": "http://127.0.0.1:7890",
+    "auth_type": "none",        # "none" 或 "basic"
+    "username": "",
+    "password": ""
 }
 
 使用方式：
@@ -33,6 +36,9 @@ _CONFIG_FILE = _CONFIG_DIR / "proxy.json"
 _DEFAULT = {
     "enabled": False,
     "url": "",
+    "auth_type": "none",   # "none" | "basic"
+    "username": "",
+    "password": "",
 }
 
 
@@ -61,14 +67,48 @@ def get_proxy_config() -> dict:
     return _load_config()
 
 
-def set_proxy_config(enabled: bool, url: str) -> dict:
+def set_proxy_config(enabled: bool, url: str, auth_type: str = "none", username: str = "", password: str = "") -> dict:
     """设置代理配置并返回新配置"""
+    if auth_type not in ("none", "basic"):
+        auth_type = "none"
     config = {
         "enabled": enabled,
         "url": url.strip() if url else "",
+        "auth_type": auth_type,
+        "username": username.strip() if username else "",
+        "password": password.strip() if password else "",
     }
     _save_config(config)
     return config
+
+
+def _build_proxy_url(config: dict) -> str | None:
+    """根据配置构造完整的代理 URL（含认证信息）"""
+    url = config.get("url", "")
+    if not url:
+        return None
+    auth_type = config.get("auth_type", "none")
+    if auth_type == "basic" and config.get("username"):
+        # 在 URL 中嵌入用户名密码
+        user = config["username"]
+        pwd = config.get("password", "")
+        # 解析原始 URL
+        if "://" in url:
+            scheme, rest = url.split("://", 1)
+            if "@" in rest:
+                # URL 已有认证信息，替换之
+                _, host_part = rest.rsplit("@", 1)
+            else:
+                host_part = rest
+            encoded_pwd = _urlencode_password(pwd)
+            return f"{scheme}://{user}:{encoded_pwd}@{host_part}"
+    return url
+
+
+def _urlencode_password(password: str) -> str:
+    """对密码中的特殊字符进行 URL 编码"""
+    import urllib.parse
+    return urllib.parse.quote(password, safe="")
 
 
 def get_proxies_for_requests() -> dict | None:
@@ -79,9 +119,10 @@ def get_proxies_for_requests() -> dict | None:
     config = _load_config()
     if not config["enabled"] or not config["url"]:
         return None
+    proxy_url = _build_proxy_url(config) or config["url"]
     return {
-        "http": config["url"],
-        "https": config["url"],
+        "http": proxy_url,
+        "https": proxy_url,
     }
 
 
@@ -93,7 +134,7 @@ def get_proxy_url() -> str | None:
     config = _load_config()
     if not config["enabled"] or not config["url"]:
         return None
-    return config["url"]
+    return _build_proxy_url(config) or config["url"]
 
 
 def apply_proxy_env() -> None:
@@ -103,8 +144,9 @@ def apply_proxy_env() -> None:
     """
     config = _load_config()
     if config["enabled"] and config["url"]:
-        os.environ["HTTP_PROXY"] = config["url"]
-        os.environ["HTTPS_PROXY"] = config["url"]
+        proxy_url = _build_proxy_url(config) or config["url"]
+        os.environ["HTTP_PROXY"] = proxy_url
+        os.environ["HTTPS_PROXY"] = proxy_url
     else:
         # 清除代理环境变量（防止宿主机泄露）
         os.environ.pop("HTTP_PROXY", None)

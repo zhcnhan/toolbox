@@ -110,6 +110,9 @@ async def get_proxy():
 async def update_proxy(
     enabled: bool = Form(False),
     url: str = Form(""),
+    auth_type: str = Form("none"),
+    username: str = Form(""),
+    password: str = Form(""),
 ):
     """更新代理配置"""
     validated_url = url.strip()
@@ -117,8 +120,12 @@ async def update_proxy(
     if enabled and validated_url:
         if not validated_url.startswith(("http://", "https://")):
             raise HTTPException(400, "代理地址必须以 http:// 或 https:// 开头")
-    config = set_proxy_config(enabled, validated_url)
-    return {"success": True, "config": config}
+    config = set_proxy_config(enabled, validated_url, auth_type, username, password)
+    # 返回时隐藏密码
+    safe_config = dict(config)
+    if safe_config.get("password"):
+        safe_config["password"] = "******"
+    return {"success": True, "config": safe_config}
 
 
 @app.get("/api/engines")
