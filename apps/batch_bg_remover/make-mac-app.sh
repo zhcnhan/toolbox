@@ -85,25 +85,29 @@ if [ ! -d "backend/venv" ]; then
   U2NET_URLS=(
     "https://ghproxy.net/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
     "https://gh-proxy.com/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
+    "https://mirror.ghproxy.com/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
+    "https://github.moeyy.xyz/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
     "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
-    "https://hf-mirror.com/tomjackson2023/rembg/resolve/main/u2net.onnx"
   )
   U2NET_OK=0
   for url in "${U2NET_URLS[@]}"; do
-    echo "  尝试: $(echo $url | sed 's|https://||' | cut -d/ -f1)"
+    HOST=$(echo "$url" | sed 's|https://||' | cut -d/ -f1)
+    echo "  尝试 ($HOST)... 超时 3 分钟"
     curl -L -o "$HOME/.u2net/u2net.onnx" "$url" \
-      --connect-timeout 15 --max-time 180 --progress-bar 2>/dev/null
+      --connect-timeout 15 --max-time 180 --progress-bar 2>&1 | \
+      grep -E '[0-9]+\.[0-9]+[kMG]?B|^  %' || true
     # 校验：模型至少 50MB
     SIZE=$(stat -f%z "$HOME/.u2net/u2net.onnx" 2>/dev/null || echo 0)
     if [ "$SIZE" -gt 50000000 ]; then
       U2NET_OK=1
+      echo "  ✅ 下载完成 ($(echo "scale=1; $SIZE/1024/1024" | bc)MB)"
       break
     fi
     rm -f "$HOME/.u2net/u2net.onnx"
-    echo "    大小不符 ($SIZE bytes)，换源重试"
+    echo "  ⚠ 失败 (大小不符: $SIZE bytes)"
   done
   if [ "$U2NET_OK" -eq 0 ]; then
-    echo "  ⚠ rembg 模型下载失败，首次抠图时会自动重试"
+    echo "  ⚠ 所有镜像均失败，首次抠图时会自动重试"
   fi
 
   # CLIPSeg 模型（~1.5GB），询问是否预下载
