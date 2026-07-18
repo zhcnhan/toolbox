@@ -4,7 +4,7 @@ import SettingsPanel from './components/SettingsPanel';
 import DropZone from './components/DropZone';
 import ImageGrid from './components/ImageGrid';
 import PromptPanel from './components/PromptPanel';
-import { fetchEngines, uploadImages, removeBg, removeBgWithPrompt, getDownloadUrl, getDownloadZipUrl, getProxyConfig, updateProxyConfig } from './api';
+import { fetchEngines, uploadImages, removeBg, removeBgWithPrompt, getDownloadUrl, getDownloadZipUrl, getProxyConfig, updateProxyConfig, checkCLIPSegStatus, triggerCLIPSegDownload, getCLIPSegDownloadProgress } from './api';
 
 /**
  * App.jsx — Batch Background Remover 主应用
@@ -50,6 +50,13 @@ export default function App() {
 
   // 代理配置（从服务器加载，持久化在服务端）
   const [proxyConfig, setProxyConfig] = useState({ enabled: false, url: '', auth_type: 'none', username: '', password: '' });
+
+  // CLIPSeg 模型下载状态
+  const [clipsegModelCached, setCLIPSegModelCached] = useState(true);
+  const [clipsegDownloading, setCLIPSegDownloading] = useState(false);
+  const [clipsegProgress, setCLIPSegProgress] = useState(0);
+  const [clipsegShowDialog, setCLIPSegShowDialog] = useState(false);
+  const [pendingPromptTask, setPendingPromptTask] = useState(null); // 等待下载完成后执行的抠图任务
 
   // 加载引擎列表和代理配置
   useEffect(() => {
@@ -187,6 +194,31 @@ export default function App() {
       if (!extra.model_name) { alert('请在设置中填写自定义引擎的模型名称'); return; }
     }
 
+    // CLIPSeg 检查模型是否已缓存
+    if (engineId === 'clipseg_local') {
+      try {
+        const status = await checkCLIPSegStatus();
+        if (!status.cached) {
+          // 未缓存，弹出下载对话框
+          setPendingPromptTask({ fileId, prompt, engineId, apiKey, extra });
+          setCLIPSegModelCached(false);
+          setCLIPSegShowDialog(true);
+          return;
+        }
+      } catch {
+        // 检查失败，继续执行（后端会报错）
+      }
+    }
+
+    // 执行抠图
+    await doPromptRemove(fileId, prompt, engineId, apiKey, extra);
+  }, [uploadedFiles, getActiveEngine, getApiKey, getEngineExtra, engines]);
+
+  // 实际执行提示词抠图
+  const doPromptRemove = useCallback(async (fileId, prompt, engineId, apiKey, extra) => {
+    const file = uploadedFiles.find(f => f.file_id === fileId);
+    if (!file) return;
+
     // 标记为处理中
     setResults(prev => {
       const filtered = prev.filter(r => r.file_id !== fileId);
@@ -207,7 +239,47 @@ export default function App() {
     } finally {
       setPromptTarget(null);
     }
-  }, [uploadedFiles, getActiveEngine, getApiKey, getEngineExtra, engines]);
+  }, [uploadedFiles]);
+
+  // 点击下载模型
+  const handleCLIPSegDownload = useCallback(async () => {
+    setCLIPSegDownloading(true);
+    try {
+      await triggerCLIPSegDownload();
+      // 轮询进度
+      const poll = setInterval(async () => {
+        try {
+          const prog = await getCLIPSegDownloadProgress();
+          setCLIPSegProgress(prog.progress);
+          if (prog.error) {
+            clearInterval(poll);
+            alert('模型下载失败: ' + prog.error);
+            setCLIPSegDownloading(false);
+            setCLIPSegShowDialog(false);
+            return;
+          }
+          if (!prog.running && prog.progress >= 100) {
+            clearInterval(poll);
+            setCLIPSegProgress(100);
+            setCLIPSegModelCached(true);
+            setCLIPSegDownloading(false);
+            setCLIPSegShowDialog(false);
+            // 继续执行等待中的抠图任务
+            if (pendingPromptTask) {
+              doPromptRemove(
+                pendingPromptTask.fileId, pendingPromptTask.prompt,
+                pendingPromptTask.engineId, pendingPromptTask.apiKey, pendingPromptTask.extra
+              );
+              setPendingPromptTask(null);
+            }
+          }
+        } catch { /* 继续轮询 */ }
+      }, 1500);
+    } catch (e) {
+      alert('启动下载失败: ' + e.message);
+      setCLIPSegDownloading(false);
+    }
+  }, [pendingPromptTask, doPromptRemove]);
 
   // 下载
   const doneResults = results.filter(r => r.status === 'done');
@@ -292,6 +364,64 @@ export default function App() {
               proxyConfig={proxyConfig}
               onProxySave={handleProxySave}
             />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* CLIPSeg 模型下载对话框 */}
+      <AnimatePresence>
+        {clipsegShowDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => { if (!clipsegDownloading) { setCLIPSegShowDialog(false); setPendingPromptTask(null); } }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass p-6 rounded-2xl max-w-sm w-full mx-4 text-center"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="text-4xl mb-3">🤖</div>
+              <h3 className="text-lg font-bold text-white mb-2">CLIPSeg 模型未下载</h3>
+              <p className="text-sm text-white/50 mb-4">
+                提示词分割功能需要下载模型（~1.5GB），
+                {clipsegDownloading ? '正在下载中...' : '是否现在下载？'}
+              </p>
+
+              {clipsegDownloading ? (
+                <div className="space-y-3">
+                  <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-accent-blue to-accent-purple rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${clipsegProgress}%` }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </div>
+                  <p className="text-xs text-white/40">{clipsegProgress}%</p>
+                  <p className="text-xs text-white/30">下载完成后会自动继续，请勿关闭页面</p>
+                </div>
+              ) : (
+                <div className="flex gap-3 justify-center">
+                  <button
+                    className="px-5 py-2 bg-accent-blue/20 text-accent-blue rounded-xl text-sm hover:bg-accent-blue/30 transition"
+                    onClick={handleCLIPSegDownload}
+                  >
+                    开始下载
+                  </button>
+                  <button
+                    className="px-5 py-2 bg-white/5 text-white/40 rounded-xl text-sm hover:bg-white/10 transition"
+                    onClick={() => { setCLIPSegShowDialog(false); setPendingPromptTask(null); }}
+                  >
+                    稍后再说
+                  </button>
+                </div>
+              )}
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

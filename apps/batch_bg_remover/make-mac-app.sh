@@ -85,6 +85,27 @@ if [ ! -d "backend/venv" ]; then
     "https://hf-mirror.com/datasets/heng881/rembg-model/resolve/main/u2net.onnx" \
     --connect-timeout 10 --max-time 120 --progress-bar || \
     echo "  ⚠ rembg 模型下载失败，首次抠图时会自动重试"
+
+  # CLIPSeg 模型（~1.5GB），询问是否预下载
+  echo ""
+  echo "→ CLIPSeg 提示词分割引擎需要额外下载模型（~1.5GB）"
+  echo "  如果现在不下载，在网页上首次使用时会自动下载（可能较慢）"
+  read -p "  是否现在下载？[y/N] " dl_clipseg
+  if [[ "$dl_clipseg" =~ ^[Yy]$ ]]; then
+    echo "→ 下载 CLIPSeg 模型中..."
+    export HF_ENDPOINT=https://hf-mirror.com
+    python3 -c "
+from huggingface_hub import snapshot_download
+import os
+os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+print('正在下载 CLIPSeg 模型（CIDAS/clipseg-rd64-refined）...')
+snapshot_download('CIDAS/clipseg-rd64-refined')
+print('✅ CLIPSeg 模型下载完成')
+" 2>&1 || echo "  ⚠ 下载失败，首次使用时自动重试"
+  else
+    echo "  已跳过，首次使用 CLIPSeg 时会自动下载"
+  fi
 else
   source backend/venv/bin/activate
 fi

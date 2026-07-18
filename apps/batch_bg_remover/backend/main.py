@@ -13,10 +13,12 @@ main.py — FastAPI 主入口
 
 import io
 import os
+import json
 import uuid
 import zipfile
 import shutil
 import asyncio
+import threading
 from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
@@ -149,6 +151,96 @@ async def get_engines():
             for e in engines
         ]
     }
+
+
+_CLIPSEG_MODEL_ID = "CIDAS/clipseg-rd64-refined"
+_CLIPSEG_DOWNLOAD_TASK: dict = {"running": False, "progress": 0, "error": ""}
+
+
+def _get_clipseg_cache_path() -> Path | None:
+    """检查 CLIPSeg 模型是否已缓存，返回缓存目录或 None"""
+    # HuggingFace 缓存路径
+    hf_home = Path(os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface"))
+    hub_dir = hf_home / "hub"
+    if not hub_dir.exists():
+        return None
+    # 查找模型缓存目录
+    for d in hub_dir.iterdir():
+        if d.is_dir() and "clipseg-rd64-refined" in d.name:
+            # 检查关键文件
+            snapshots = d / "snapshots"
+            if snapshots.exists():
+                for s in snapshots.iterdir():
+                    if (s / "pytorch_model.bin").exists():
+                        return s
+    return None
+
+
+@app.get("/api/engine/clipseg_local/status")
+async def clipseg_status():
+    """检查 CLIPSeg 模型下载状态"""
+    cached = _get_clipseg_cache_path() is not None
+    return {
+        "engine_id": "clipseg_local",
+        "cached": cached,
+        "downloading": _CLIPSEG_DOWNLOAD_TASK["running"],
+        "progress": _CLIPSEG_DOWNLOAD_TASK["progress"],
+        "error": _CLIPSEG_DOWNLOAD_TASK["error"],
+    }
+
+
+def _download_clipseg_background():
+    """后台线程：下载 CLIPSeg 模型并更新进度"""
+    try:
+        from huggingface_hub import snapshot_download
+        _CLIPSEG_DOWNLOAD_TASK["running"] = True
+        _CLIPSEG_DOWNLOAD_TASK["progress"] = 0
+        _CLIPSEG_DOWNLOAD_TASK["error"] = ""
+        os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
+        # 检查是否已缓存
+        if _get_clipseg_cache_path() is not None:
+            _CLIPSEG_DOWNLOAD_TASK["progress"] = 100
+            _CLIPSEG_DOWNLOAD_TASK["running"] = False
+            return
+
+        # 带进度的下载
+        def on_progress(current, total):
+            if total > 0:
+                _CLIPSEG_DOWNLOAD_TASK["progress"] = int(current / total * 100)
+
+        snapshot_download(
+            _CLIPSEG_MODEL_ID,
+            local_files_only=False,
+            callback=on_progress,
+        )
+        _CLIPSEG_DOWNLOAD_TASK["progress"] = 100
+    except Exception as e:
+        _CLIPSEG_DOWNLOAD_TASK["error"] = str(e)
+    finally:
+        _CLIPSEG_DOWNLOAD_TASK["running"] = False
+
+
+@app.post("/api/engine/clipseg_local/download")
+async def clipseg_download():
+    """触发 CLIPSeg 模型下载"""
+    if _CLIPSEG_DOWNLOAD_TASK["running"]:
+        return {
+            "status": "already_downloading",
+            "progress": _CLIPSEG_DOWNLOAD_TASK["progress"],
+        }
+    if _get_clipseg_cache_path() is not None:
+        return {"status": "already_cached", "progress": 100}
+
+    thread = threading.Thread(target=_download_clipseg_background, daemon=True)
+    thread.start()
+    return {"status": "started", "progress": 0}
+
+
+@app.get("/api/engine/clipseg_local/download/progress")
+async def clipseg_download_progress():
+    """获取 CLIPSeg 模型下载进度"""
+    return dict(_CLIPSEG_DOWNLOAD_TASK)
 
 
 @app.post("/api/upload")

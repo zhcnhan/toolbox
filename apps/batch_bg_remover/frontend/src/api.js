@@ -92,3 +92,21 @@ export async function updateProxyConfig(enabled, url, authType = 'none', usernam
   }
   return await res.json();
 }
+
+export async function checkCLIPSegStatus() {
+  const res = await fetch(`${BASE}/engine/clipseg_local/status`);
+  if (!res.ok) return { cached: false, downloading: false, progress: 0, error: '' };
+  return await res.json();
+}
+
+export async function triggerCLIPSegDownload() {
+  const res = await fetch(`${BASE}/engine/clipseg_local/download`, { method: 'POST' });
+  if (!res.ok) throw new Error('触发模型下载失败');
+  return await res.json();
+}
+
+export async function getCLIPSegDownloadProgress() {
+  const res = await fetch(`${BASE}/engine/clipseg_local/download/progress`);
+  if (!res.ok) return { running: false, progress: 0, error: '' };
+  return await res.json();
+}
