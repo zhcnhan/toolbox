@@ -11,6 +11,7 @@ engines/clipseg_local_engine.py — 本地文本提示词分割引擎
 """
 
 import io
+import json
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +21,34 @@ from engine_registry import register_engine
 
 # 本地模型路径（可通过 snapshot_download 预下载，避免联网）
 _LOCAL_MODEL_DIR = Path("/app/clipseg-model")
+
+# 默认 processor 配置（当 HuggingFace 下载不完整时自动补全）
+_DEFAULT_PROCESSOR_CONFIG = {
+    "image_processor_type": "CLIPSegProcessor",
+    "do_resize": True,
+    "size": {"height": 352, "width": 352},
+    "do_normalize": True,
+    "image_mean": [0.485, 0.456, 0.406],
+    "image_std": [0.229, 0.224, 0.225],
+}
+
+
+def _ensure_model_dir(model_dir: Path):
+    """确保模型目录完整，缺失的配置文件自动补全"""
+    if not model_dir.exists():
+        return False
+
+    # 补全缺失的 processor_config.json
+    proc_file = model_dir / "processor_config.json"
+    if not proc_file.exists():
+        proc_file.write_text(json.dumps(_DEFAULT_PROCESSOR_CONFIG, indent=2), encoding="utf-8")
+
+    # 补全缺失的 preprocessor_config.json（部分 transformers 版本需要）
+    preproc_file = model_dir / "preprocessor_config.json"
+    if not preproc_file.exists() and proc_file.exists():
+        preproc_file.write_text(proc_file.read_text(encoding="utf-8"), encoding="utf-8")
+
+    return True
 
 
 @register_engine("clipseg_local")
@@ -35,7 +64,7 @@ class CLIPSegLocalEngine(BaseEngine):
             import torch
 
             # 优先从本地路径加载（离线部署场景）
-            if _LOCAL_MODEL_DIR.exists():
+            if _ensure_model_dir(_LOCAL_MODEL_DIR):
                 model_id = str(_LOCAL_MODEL_DIR)
             else:
                 model_id = "CIDAS/clipseg-rd64-refined"
@@ -89,8 +118,14 @@ class CLIPSegLocalEngine(BaseEngine):
         mask = F.interpolate(preds, size=(orig_size[1], orig_size[0]), mode="bilinear", align_corners=False)
         mask = torch.sigmoid(mask[0, 0]).cpu().numpy()
 
-        # 阈值 0.5 二值化，作为 alpha 通道
+        # 自动拉伸 mask 对比度：将 [min, max] 映射到 [0, 1]
+        # 避免提示词不匹配时 sigmoid 输出值过低导致全透明
+        lo, hi = mask.min(), mask.max()
+        if hi - lo > 0.05:
+            mask = (mask - lo) / (hi - lo)
+        # 阈值 0.3 二值化，作为 alpha 通道
         mask_uint8 = (mask * 255).astype(np.uint8)
+        mask_uint8 = np.where(mask_uint8 < 76, 0, mask_uint8)  # 0.3 threshold
 
         # 合成 RGBA 图片
         rgba = np.array(image.convert("RGBA"))
