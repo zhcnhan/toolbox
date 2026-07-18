@@ -8,9 +8,36 @@ engines/rembg_local_engine.py — 本地自动抠图引擎
 """
 
 import io
+import os
+from pathlib import Path
 from PIL import Image
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
+
+
+def _ensure_u2net_model():
+    """
+    确保 U2Net 模型已下载。
+    如果 ~/.u2net/u2net.onnx 不存在，从国内镜像预下载，
+    避免 rembg 首次使用时从 GitHub 下载超时。
+    """
+    model_dir = Path.home() / ".u2net"
+    model_path = model_dir / "u2net.onnx"
+    if model_path.exists() and model_path.stat().st_size > 1_000_000:
+        return True  # 已存在
+
+    model_dir.mkdir(parents=True, exist_ok=True)
+    mirror_url = "https://hf-mirror.com/datasets/heng881/rembg-model/resolve/main/u2net.onnx"
+
+    import urllib.request
+    try:
+        print(f"[rembg] 正在从镜像下载 U2Net 模型...")
+        urllib.request.urlretrieve(mirror_url, str(model_path))
+        print(f"[rembg] 模型下载完成 ({model_path.stat().st_size / 1024 / 1024:.0f}MB)")
+        return True
+    except Exception as e:
+        print(f"[rembg] 镜像下载失败 ({e})，rembg 将尝试官方源")
+        return False
 
 
 def _safe_import_rembg():
@@ -50,6 +77,8 @@ class RembgLocalEngine(BaseEngine):
 
     def _get_session(self):
         if self._session is None:
+            # 确保模型已下载（优先从国内镜像下载，避免 GitHub 超时）
+            _ensure_u2net_model()
             rembg = self._get_rembg()
             # u2net 是通用模型，效果好且轻量
             # 也可用 "birefnet-general" 追求更高精度（需额外下载模型）
