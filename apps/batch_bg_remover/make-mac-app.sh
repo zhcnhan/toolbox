@@ -93,6 +93,8 @@ if [ ! -d "backend/venv" ]; then
   read -p "  是否现在下载？[y/N] " dl_clipseg
   if [[ "$dl_clipseg" =~ ^[Yy]$ ]]; then
     echo "→ 下载 CLIPSeg 模型中..."
+    # 确保 huggingface_hub 已安装（轻量，下载模型用）
+    pip install -q huggingface-hub -i https://pypi.tuna.tsinghua.edu.cn/simple 2>/dev/null
     export HF_ENDPOINT=https://hf-mirror.com
     "$BASE/backend/venv/bin/python3" -c "
 from huggingface_hub import snapshot_download
