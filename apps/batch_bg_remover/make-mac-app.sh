@@ -83,10 +83,10 @@ if [ ! -d "backend/venv" ]; then
   mkdir -p "$HOME/.u2net"
   # 多镜像轮询
   U2NET_URLS=(
-    "https://hf-mirror.com/tomjackson2023/rembg/resolve/main/u2net.onnx"
     "https://ghproxy.net/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
     "https://gh-proxy.com/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
     "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
+    "https://hf-mirror.com/tomjackson2023/rembg/resolve/main/u2net.onnx"
   )
   U2NET_OK=0
   for url in "${U2NET_URLS[@]}"; do
