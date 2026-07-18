@@ -272,6 +272,35 @@ function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settin
 
       <p className="text-white/40 text-xs leading-relaxed">{engine.description}</p>
 
+      {/* CLIPSeg 灵敏度滑块 */}
+      {engine.id === 'clipseg_local' && isActive && (
+        <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs text-white/50">抠图灵敏度</label>
+            <span className="text-xs text-white/30">{settings.clipseg_sensitivity ?? 0.5}</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/10 accent-accent-blue"
+            style={{ background: `linear-gradient(to right, #3b82f6 ${(settings.clipseg_sensitivity ?? 0.5) * 100}%, rgba(255,255,255,0.1) ${(settings.clipseg_sensitivity ?? 0.5) * 100}%)` }}
+            value={settings.clipseg_sensitivity ?? 0.5}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value);
+              onUpdate('clipseg_sensitivity', val);
+              e.target.style.background = `linear-gradient(to right, #3b82f6 ${val * 100}%, rgba(255,255,255,0.1) ${val * 100}%)`;
+            }}
+          />
+          <div className="flex justify-between text-xs text-white/20 mt-0.5">
+            <span>宽松</span>
+            <span>默认</span>
+            <span>严格</span>
+          </div>
+        </div>
+      )}
+
       {engine.needs_api_key && isActive && (
         <div className="mt-3" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-1">

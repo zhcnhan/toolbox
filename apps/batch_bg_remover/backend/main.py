@@ -246,6 +246,7 @@ async def remove_background_with_prompt(
     api_key: Optional[str] = Form(None),
     base_url: Optional[str] = Form(None),
     model_name: Optional[str] = Form(None),
+    sensitivity: Optional[float] = Form(None),
 ):
     """
     根据文本提示词选取主体并抠图
@@ -264,12 +265,17 @@ async def remove_background_with_prompt(
 
     image_bytes = file_path.read_bytes()
 
+    # 为 CLIPSeg 准备 sensitivity 参数
+    kwargs = {}
+    if engine_id == "clipseg_local" and sensitivity is not None:
+        kwargs["sensitivity"] = max(0.0, min(1.0, sensitivity))
+
     try:
         engine_info = engine.__class__.info()
         if engine_info.type == "local":
             loop = asyncio.get_event_loop()
             result_bytes = await loop.run_in_executor(
-                _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key)
+                _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key, **kwargs)
             )
         elif engine_id == "custom":
             result_bytes = await engine.remove_bg_with_prompt(

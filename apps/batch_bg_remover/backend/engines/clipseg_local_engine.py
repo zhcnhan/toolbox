@@ -91,11 +91,25 @@ class CLIPSegLocalEngine(BaseEngine):
         raise NotImplementedError("CLIPSeg 不支持自动抠图，请使用提示词模式或 rembg")
 
     async def remove_bg_with_prompt(
-        self, image_bytes: bytes, prompt: str, api_key: str | None = None
+        self, image_bytes: bytes, prompt: str, api_key: str | None = None,
+        sensitivity: float = 0.5
     ) -> bytes:
-        """根据文本提示词分割主体并返回透明 PNG"""
+        """
+        根据文本提示词分割主体并返回透明 PNG。
+
+        sensitivity: 0.0~1.0, 控制 mask 灵敏度。
+          值越低越容易出图（但可能包含无关区域），
+          值越高要求越精确匹配（但可能漏掉主体）。
+        """
         import torch
         import torch.nn.functional as F
+
+        # 将 sensitivity 映射到百分位参数
+        # sensitivity=0.0 → 用 95% 分位做白, 10% 以下透明 (宽松)
+        # sensitivity=0.5 → 用 85% 分位做白, 50% 以下透明 (默认)
+        # sensitivity=1.0 → 用 70% 分位做白, 70% 以下透明 (严格)
+        white_pct = 95 - sensitivity * 25  # 95→70
+        black_pct = 10 + sensitivity * 60  # 10→70
 
         self._load_model()
 
@@ -122,10 +136,12 @@ class CLIPSegLocalEngine(BaseEngine):
         lo, hi = mask.min(), mask.max()
         if hi - lo > 0.05:
             mask = (mask - lo) / (hi - lo)
-        # 用百分比拉伸：取 85% 分位值作为白色，50% 以下直接变透明
-        p85 = np.percentile(mask, 85)
-        p50 = np.percentile(mask, 50)
-        mask = np.clip((mask - p50) / (p85 - p50 + 1e-8), 0, 1)
+        # 用可调节的百分比拉伸
+        p_white = np.percentile(mask, white_pct)
+        p_black = np.percentile(mask, black_pct)
+        if p_white <= p_black:
+            p_white = p_black + 0.01
+        mask = np.clip((mask - p_black) / (p_white - p_black + 1e-8), 0, 1)
         # 作为 alpha 通道
         mask_uint8 = (mask * 255).astype(np.uint8)
 

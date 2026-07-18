@@ -50,6 +50,7 @@ export async function removeBgWithPrompt(fileId, engineId, prompt, apiKey, extra
   if (apiKey) form.append('api_key', apiKey);
   if (extra.base_url) form.append('base_url', extra.base_url);
   if (extra.model_name) form.append('model_name', extra.model_name);
+  if (extra.sensitivity !== undefined) form.append('sensitivity', extra.sensitivity);
 
   const res = await fetch(`${BASE}/remove-bg-prompt`, { method: 'POST', body: form });
   if (!res.ok) {

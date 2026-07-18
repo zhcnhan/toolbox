@@ -76,13 +76,18 @@ export default function App() {
     return settings[`key_${engineId}`] || '';
   }, [settings]);
 
-  // 获取自定义引擎的额外配置（base_url, model_name）
+  // 获取引擎的额外配置参数
   const getEngineExtra = useCallback((engineId) => {
-    if (engineId !== 'custom') return {};
-    return {
-      base_url: settings.custom_base_url || '',
-      model_name: settings.custom_model_name || '',
-    };
+    const extra = {};
+    if (engineId === 'custom') {
+      extra.base_url = settings.custom_base_url || '';
+      extra.model_name = settings.custom_model_name || '';
+    }
+    // CLIPSeg 灵敏度
+    if (engineId === 'clipseg_local' && settings.clipseg_sensitivity !== undefined) {
+      extra.sensitivity = settings.clipseg_sensitivity;
+    }
+    return extra;
   }, [settings]);
 
   const getActiveEngine = useCallback((mode) => {
