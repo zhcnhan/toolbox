@@ -57,13 +57,13 @@ python run.py --port 9000
 
 ```bash
 # 方式一：一键启动（推荐）
-chmod +x start_mac.sh && ./start_mac.sh
+chmod +x batch-bg-mac.sh && ./batch-bg-mac.sh
 
 # 方式二：Docker Desktop
 chmod +x deploy.sh && ./deploy.sh
 ```
 
-首次运行会自动创建虚拟环境、安装依赖。之后每次只用 `./start_mac.sh` 即可。
+首次运行会自动创建虚拟环境、安装依赖。之后每次只用 `./batch-bg-mac.sh` 即可。
 启动后访问 `http://localhost:5174`。
 
 ### 服务器部署
