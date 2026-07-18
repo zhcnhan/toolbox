@@ -114,8 +114,8 @@ if [ ! -d "backend/venv" ]; then
   echo ""
   echo "→ CLIPSeg 提示词分割引擎需要额外下载模型（~1.5GB）"
   echo "  如果现在不下载，在网页上首次使用时会自动下载（可能较慢）"
-  read -p "  是否现在下载？[y/N] " dl_clipseg
-  if [[ "$dl_clipseg" =~ ^[Yy]$ ]]; then
+  read -p "  是否现在下载（推荐）？[Y/n] " dl_clipseg
+  if [[ ! "$dl_clipseg" =~ ^[Nn]$ ]]; then
     echo "→ 下载 CLIPSeg 模型中..."
     # 确保 huggingface_hub 已安装（轻量，下载模型用）
     pip install -q huggingface-hub -i https://pypi.tuna.tsinghua.edu.cn/simple 2>/dev/null

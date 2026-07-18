@@ -243,6 +243,102 @@ async def clipseg_download_progress():
     return dict(_CLIPSEG_DOWNLOAD_TASK)
 
 
+# ============================================================
+# CLIPSeg 依赖（torch + transformers）自动安装
+# ============================================================
+
+_CLIPSEG_DEPS_TASK: dict = {"running": False, "progress": 0, "error": "", "stage": ""}
+
+
+def _check_clipseg_deps_installed() -> bool:
+    """检查 CLIPSeg 依赖（torch + transformers）是否已安装"""
+    try:
+        import torch  # noqa: F401
+        import transformers  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _install_clipseg_deps_background():
+    """后台线程：安装 torch + transformers"""
+    import subprocess
+    import sys
+
+    _CLIPSEG_DEPS_TASK["running"] = True
+    _CLIPSEG_DEPS_TASK["progress"] = 0
+    _CLIPSEG_DEPS_TASK["error"] = ""
+    _CLIPSEG_DEPS_TASK["stage"] = "installing"
+
+    try:
+        # step 1: torch
+        _CLIPSEG_DEPS_TASK["stage"] = "正在安装 PyTorch（约 800MB）..."
+        _CLIPSEG_DEPS_TASK["progress"] = 10
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "torch",
+             "-i", "https://pypi.tuna.tsinghua.edu.cn/simple",
+             "--no-cache-dir"],
+            capture_output=True, text=True, timeout=600
+        )
+        if result.returncode != 0:
+            _CLIPSEG_DEPS_TASK["error"] = f"PyTorch 安装失败: {result.stderr[-200:]}"
+            return
+
+        _CLIPSEG_DEPS_TASK["progress"] = 55
+
+        # step 2: transformers
+        _CLIPSEG_DEPS_TASK["stage"] = "正在安装 transformers..."
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "transformers",
+             "-i", "https://pypi.tuna.tsinghua.edu.cn/simple",
+             "--no-cache-dir"],
+            capture_output=True, text=True, timeout=300
+        )
+        if result.returncode != 0:
+            _CLIPSEG_DEPS_TASK["error"] = f"transformers 安装失败: {result.stderr[-200:]}"
+            return
+
+        _CLIPSEG_DEPS_TASK["progress"] = 85
+        _CLIPSEG_DEPS_TASK["stage"] = "验证安装..."
+        import torch  # noqa: F401
+        import transformers  # noqa: F401
+        _CLIPSEG_DEPS_TASK["progress"] = 100
+        _CLIPSEG_DEPS_TASK["stage"] = "安装完成"
+
+    except ImportError:
+        _CLIPSEG_DEPS_TASK["error"] = "验证失败，请尝试手动安装"
+    except subprocess.TimeoutExpired:
+        _CLIPSEG_DEPS_TASK["error"] = "安装超时，请检查网络后重试"
+    except Exception as e:
+        _CLIPSEG_DEPS_TASK["error"] = str(e)
+    finally:
+        _CLIPSEG_DEPS_TASK["running"] = False
+
+
+@app.get("/api/engine/clipseg_local/deps-status")
+async def clipseg_deps_status():
+    """检查 CLIPSeg 依赖安装状态"""
+    installed = _check_clipseg_deps_installed()
+    return {
+        "engine_id": "clipseg_local",
+        "installed": installed,
+        **dict(_CLIPSEG_DEPS_TASK),
+    }
+
+
+@app.post("/api/engine/clipseg_local/install-deps")
+async def clipseg_install_deps():
+    """触发 CLIPSeg 依赖安装（torch + transformers）"""
+    if _check_clipseg_deps_installed():
+        return {"status": "already_installed", "progress": 100}
+    if _CLIPSEG_DEPS_TASK["running"]:
+        return {"status": "installing", "progress": _CLIPSEG_DEPS_TASK["progress"]}
+
+    thread = threading.Thread(target=_install_clipseg_deps_background, daemon=True)
+    thread.start()
+    return {"status": "started", "progress": 0, "stage": "正在安装 PyTorch（约 800MB）..."}
+
+
 @app.post("/api/upload")
 async def upload_images(files: list[UploadFile] = File(...)):
     """批量上传图片，返回文件 ID 列表"""

@@ -110,3 +110,15 @@ export async function getCLIPSegDownloadProgress() {
   if (!res.ok) return { running: false, progress: 0, error: '' };
   return await res.json();
 }
+
+export async function checkCLIPSegDeps() {
+  const res = await fetch(`${BASE}/engine/clipseg_local/deps-status`);
+  if (!res.ok) return { installed: false, running: false, progress: 0, error: '', stage: '' };
+  return await res.json();
+}
+
+export async function installCLIPSegDeps() {
+  const res = await fetch(`${BASE}/engine/clipseg_local/install-deps`, { method: 'POST' });
+  if (!res.ok) throw new Error('触发依赖安装失败');
+  return await res.json();
+}
