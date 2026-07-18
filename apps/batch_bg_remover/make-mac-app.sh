@@ -10,12 +10,13 @@ APP_FILE="$HOME/Desktop/批量抠图.command"
 
 cat > "$APP_FILE" << 'SCRIPT'
 #!/bin/bash
-cd "$(dirname "$0")"
-DIR="$HOME/Desktop/toolbox/apps/batch_bg_remover"
 
-if [ ! -d "$DIR" ]; then
-  DIR=$(find "$HOME" -maxdepth 4 -name "batch_bg_remover" -type d 2>/dev/null | head -1)
-fi
+# Apple Silicon Mac 的 Homebrew 路径
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+# 找到项目目录
+DIR="$HOME/Desktop/toolbox/apps/batch_bg_remover"
+[ ! -d "$DIR" ] && DIR=$(find "$HOME" -maxdepth 4 -name "batch_bg_remover" -type d 2>/dev/null | head -1)
 
 if [ ! -d "$DIR" ]; then
   echo "错误：没找到 toolbox 项目文件夹"
@@ -24,10 +25,19 @@ if [ ! -d "$DIR" ]; then
 fi
 
 cd "$DIR"
+BASE="$DIR"
 
 echo "========================================"
 echo "  批量抠图 — 启动中..."
 echo "========================================"
+
+# 检查 Node.js
+if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
+  echo "[错误] 未安装 Node.js 和 npm"
+  echo "请先安装：brew install node"
+  echo "或在终端执行：/bin/bash -c \"\$(curl -fsSL https://gitee.com/ineo6/homebrew-install/raw/master/install.sh)\" && brew install node"
+  exit 1
+fi
 
 # 虚拟环境
 if [ ! -d "backend/venv" ]; then
@@ -42,15 +52,21 @@ fi
 # 前端依赖
 if [ ! -d "frontend/node_modules" ]; then
   echo "[2/3] 首次安装前端依赖..."
-  cd frontend && npm config set registry https://registry.npmmirror.com && npm install --silent && cd ..
+  (cd frontend && npm config set registry https://registry.npmmirror.com && npm install --silent)
 fi
 
+# 回到项目根目录
+cd "$BASE"
+
 echo "[3/3] 启动服务..."
-cd backend && uvicorn main:app --host 127.0.0.1 --port 8001 &
+
+# 启动后端（后台）
+(cd backend && uvicorn main:app --host 127.0.0.1 --port 8001) &
 BACKEND=$!
-cd ../frontend && npm run dev -- --host 127.0.0.1 &
+
+# 启动前端（后台）
+(cd frontend && npm run dev -- --host 127.0.0.1) &
 FRONTEND=$!
-cd ..
 
 sleep 3
 open http://localhost:5174
