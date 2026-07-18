@@ -22,14 +22,19 @@ if ! docker compose version &>/dev/null; then
     exit 1
 fi
 
-# 询问是否启用 CLIPSeg
-read -p "是否启用 CLIPSeg 提示词分割引擎？(需 ~800MB 额外空间) [y/N]: " enable_clipseg
+# 询问是否启用 CLIPSeg（默认不装，需要 ~800MB 额外空间和 torch）
+echo ""
+echo "[可选] CLIPSeg 提示词分割引擎"
+echo "  功能：用文字描述指定抠图主体（如「猫」「红色汽车」）"
+echo "  注意：需额外下载 ~800MB（torch + transformers），构建时间较长"
+echo "  不装不影响核心抠图功能，用 rembg 本地引擎即可"
+read -p "是否启用？[y/N] (默认不装): " enable_clipseg
 if [[ "$enable_clipseg" =~ ^[Yy]$ ]]; then
     CLIPSEG_ARG="--build-arg INSTALL_CLIPSEG=true"
-    echo "[Info] 已启用 CLIPSeg (构建时预下载模型，首次使用免等待)"
+    echo "[OK] CLIPSeg 已启用 (构建时预下载模型，首次提示词分割即开即用)"
 else
     CLIPSEG_ARG=""
-    echo "[Info] 未启用 CLIPSeg"
+    echo "[OK] CLIPSeg 未启用 (随时可重建开启：docker compose build --build-arg INSTALL_CLIPSEG=true)"
 fi
 
 # 确保数据目录
