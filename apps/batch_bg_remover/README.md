@@ -1,6 +1,6 @@
 # ✂️ Batch Background Remover — 批量抠图工具
 
-**6 引擎 · 本地 + 云端 · 自动抠图 + 提示词修正 · 一键打包下载**
+**7 引擎 · 本地 + 云端 · 自动抠图 + 提示词修正 · 一键打包下载**
 
 ---
 
@@ -8,11 +8,13 @@
 
 - 🖥️ **本地抠图**：rembg (U2-Net)，CPU 即可运行，无需联网，无需 API Key
 - ✂️ **提示词修正**：自动抠图不满意？输入文本提示词（如"左边的猫"）重新选取主体
-- ☁️ **6 个引擎可选**：rembg / CLIPSeg / Gemini / remove.bg / 擦个图 / Replicate / 自定义
+- 🎚️ **灵敏度调节**：CLIPSeg 本地引擎支持拖动滑块调节抠图灵敏度
+- ☁️ **7 个引擎可选**：rembg / CLIPSeg / Gemini / remove.bg / 擦个图 / Replicate / 自定义
 - 🔌 **插件式架构**：新增引擎只需写一个 `*_engine.py` 文件，自动发现注册
 - 📦 **批量处理**：一次拖入几十张图，逐张处理
 - 💾 **一键打包**：所有结果打包 ZIP 下载
 - 🔐 **隐私安全**：API Key 存前端 localStorage，不上传服务器；本地模式完全离线
+- 🌐 **代理支持**：支持 HTTP 代理（含 Basic 认证），方便服务器走 VPN 访问云端 API
 - 🎀 **可爱界面**：玻璃拟态深色主题，Framer Motion 动画
 
 ---
@@ -22,10 +24,10 @@
 | 引擎 | 类型 | 自动抠图 | 提示词分割 | 需要 Key | 价格 |
 |------|------|:-------:|:---------:|:--------:|------|
 | **rembg** | 本地 | ✅ | ❌ | 否 | 免费 |
-| **CLIPSeg** | 本地 | ❌ | ✅ | 否 | 免费（需装 torch） |
+| **CLIPSeg** 🆕 | 本地 | ❌ | ✅ | 否 | 免费（可选装 torch） |
 | **remove.bg** | 云端 | ✅ | ❌ | [获取](https://www.remove.bg/api) | 50张/月免费，$0.09/张 |
 | **擦个图** | 云端 | ✅ | ❌ | [获取](https://cagetu.com) | 0.1元/次 |
-| **Gemini** | 云端 | ✅ | ✅ | [获取](https://aistudio.google.com/apikey) | 有免费额度 |
+| **Gemini** | 云端 | ✅ | ✅ | [获取](https://aistudio.google.com/apikey) | Free Tier 有免费额度 |
 | **Replicate** | 云端 | ✅ | ✅ | [获取](https://replicate.com/account/api-tokens) | ~$0.001/秒 |
 | **自定义** | 云端 | ✅ | ✅ | 用户自填 | 取决于服务商 |
 
@@ -53,9 +55,26 @@ python run.py --port 9000
 
 ### 服务器部署
 
+#### 方式一：一键部署（推荐）
+
+```bash
+chmod +x deploy.sh && ./deploy.sh
+```
+
+交互式引导，自动检测环境、可选 CLIPSeg 引擎、可选国内镜像，选择会被记录到 `.env`，后续重建自动沿用。
+
+#### 方式二：手动 Docker
+
+```bash
+docker compose build && docker compose up -d
+
+# 如需启用 CLIPSeg 提示词分割引擎
+docker compose build --build-arg INSTALL_CLIPSEG=true && docker compose up -d
+```
+
 详见 [DEPLOY.md](./DEPLOY.md)，支持 4 种部署方式：
 
-1. **Docker Compose**（推荐）— `docker compose up -d --build`
+1. **Docker Compose**（推荐）— `deploy.sh` 一键部署
 2. **手动部署** — Python + Node 构建
 3. **Nginx 反向代理** — 域名 + HTTPS
 4. **systemd 系统服务** — 开机自启 + 崩溃重启
@@ -97,7 +116,7 @@ batch_bg_remover/
 │   ├── package.json
 │   ├── vite.config.js
 │   └── tailwind.config.js
-├── run.py                           # 一键启动脚本
+├── deploy.sh                        # 一键部署脚本
 ├── Dockerfile                       # Docker 构建
 ├── docker-compose.yml               # Docker Compose 编排
 ├── nginx.conf                       # Nginx 反代配置
@@ -156,7 +175,9 @@ class MyEngine(BaseEngine):
 | `GET` | `/api/engines` | 列出所有可用引擎 |
 | `POST` | `/api/upload` | 批量上传图片 |
 | `POST` | `/api/remove-bg` | 自动抠图 |
-| `POST` | `/api/remove-bg-prompt` | 提示词抠图 |
+| `POST` | `/api/remove-bg-prompt` | 提示词抠图（可选参数 `sensitivity` 调节灵敏度） |
+| `GET` | `/api/proxy` | 获取代理配置 |
+| `PUT` | `/api/proxy` | 更新代理配置（支持认证） |
 | `GET` | `/api/download/{result_id}` | 下载单张结果 |
 | `GET` | `/api/download-zip?result_ids=...` | 打包下载 |
 
