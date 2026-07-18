@@ -71,22 +71,14 @@ jobs:
           echo "Total JS size: $(du -sh ../backend/static/assets/ | cut -f1)"
 
   test-docker:
-    name: Docker Build (macOS)
-    runs-on: macos-latest
+    name: Docker Build (Linux)
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/batch_bg_remover
 
     steps:
       - uses: actions/checkout@v5
-
-      - name: Install Docker Compose v2 plugin
-        run: |
-          docker --version
-          mkdir -p ~/.docker/cli-plugins
-          curl -sSL "https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-$(uname -s)-$(uname -m)" -o ~/.docker/cli-plugins/docker-compose
-          chmod +x ~/.docker/cli-plugins/docker-compose
-          docker compose version
 
       - name: Build Docker image
         run: docker compose build
