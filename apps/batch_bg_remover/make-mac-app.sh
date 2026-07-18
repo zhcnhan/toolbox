@@ -77,6 +77,14 @@ if [ ! -d "backend/venv" ]; then
   python3 -m venv backend/venv
   source backend/venv/bin/activate
   pip install -r backend/requirements.txt -q -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+  # 预下载 rembg 模型（避免首次抠图超时）
+  echo "→ 下载 rembg 模型..."
+  mkdir -p "$HOME/.u2net"
+  curl -L -o "$HOME/.u2net/u2net.onnx" \
+    "https://hf-mirror.com/datasets/heng881/rembg-model/resolve/main/u2net.onnx" \
+    --connect-timeout 10 --max-time 120 --progress-bar || \
+    echo "  ⚠ rembg 模型下载失败，首次抠图时会自动重试"
 else
   source backend/venv/bin/activate
 fi
@@ -91,6 +99,9 @@ fi
 cd "$BASE"
 
 echo "[3/3] 启动服务..."
+
+# 设置 HuggingFace 国内镜像（CLIPSeg 下载模型时走这个源）
+export HF_ENDPOINT=https://hf-mirror.com
 
 # 启动后端（后台）
 (cd backend && uvicorn main:app --host 127.0.0.1 --port 8001) &
