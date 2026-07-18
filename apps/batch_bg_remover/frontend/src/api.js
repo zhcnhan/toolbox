@@ -70,3 +70,21 @@ export function getDownloadUrl(resultId) {
 export function getDownloadZipUrl(resultIds) {
   return `${BASE}/download-zip?result_ids=${resultIds.join(',')}`;
 }
+
+export async function getProxyConfig() {
+  const res = await fetch(`${BASE}/proxy`);
+  if (!res.ok) throw new Error('获取代理配置失败');
+  return await res.json();
+}
+
+export async function updateProxyConfig(enabled, url) {
+  const form = new FormData();
+  form.append('enabled', enabled);
+  form.append('url', url);
+  const res = await fetch(`${BASE}/proxy`, { method: 'PUT', body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || '保存代理配置失败');
+  }
+  return await res.json();
+}

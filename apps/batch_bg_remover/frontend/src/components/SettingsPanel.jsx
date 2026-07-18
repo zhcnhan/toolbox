@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
 /**
@@ -8,7 +9,7 @@ import { motion } from 'framer-motion';
  *   3. 填写各引擎的 API Key
  */
 
-export default function SettingsPanel({ engines, settings, onUpdate }) {
+export default function SettingsPanel({ engines, settings, onUpdate, proxyConfig, onProxySave }) {
   const autoEngines = engines.filter(e => e.supports_auto);
   const promptEngines = engines.filter(e => e.supports_prompt);
 
@@ -69,9 +70,115 @@ export default function SettingsPanel({ engines, settings, onUpdate }) {
           </div>
         </div>
       </div>
+
+      {/* 代理设置 */}
+      <div className="mt-6 pt-5 border-t border-white/10">
+        <ProxySettings proxyConfig={proxyConfig} onProxySave={onProxySave} />
+      </div>
     </div>
   );
 }
+
+function ProxySettings({ proxyConfig, onProxySave }) {
+  const [editing, setEditing] = useState(false);
+  const [url, setUrl] = useState(proxyConfig?.url || '');
+  const [enabled, setEnabled] = useState(proxyConfig?.enabled || false);
+  const [saving, setSaving] = useState(false);
+
+  // 当外部 proxyConfig 变化时同步
+  useEffect(() => {
+    setUrl(proxyConfig?.url || '');
+    setEnabled(proxyConfig?.enabled || false);
+  }, [proxyConfig]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onProxySave(enabled, url);
+      setEditing(false);
+    } catch (e) {
+      alert('保存失败: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-sm font-semibold text-white/60">🔗 代理设置</span>
+          <span className="ml-2 text-xs text-white/30">
+            {proxyConfig?.enabled && proxyConfig?.url
+              ? `已启用 · ${proxyConfig.url}`
+              : '未启用（直连）'}
+          </span>
+        </div>
+        <button
+          className="text-xs text-accent-blue hover:underline"
+          onClick={() => setEditing(true)}
+        >
+          配置 →
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm font-semibold text-white/60">🔗 代理设置</span>
+        <button
+          className="text-xs text-white/30 hover:text-white/60"
+          onClick={() => setEditing(false)}
+        >
+          取消
+        </button>
+      </div>
+
+      <div className="p-4 glass-light space-y-3">
+        {/* 启用开关 */}
+        <label className="flex items-center justify-between">
+          <span className="text-sm text-white/70">启用代理</span>
+          <div className="toggle" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(e) => setEnabled(e.target.checked)}
+            />
+            <span className="slider"></span>
+          </div>
+        </label>
+
+        {/* 代理地址 */}
+        <div>
+          <label className="text-xs text-white/50 block mb-1">代理地址</label>
+          <input
+            type="text"
+            className="input-field text-sm"
+            placeholder="如: http://127.0.0.1:7890"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            disabled={!enabled}
+          />
+        </div>
+
+        <p className="text-white/30 text-xs leading-relaxed">
+          针对服务器部署场景：部分云服务器可能限制访问国外 API，可通过 HTTP 代理转发流量。支持 Clash / V2Ray 等本地代理。
+        </p>
+
+        <button
+          className="btn-primary text-sm w-full"
+          onClick={handleSave}
+          disabled={saving || (enabled && !url)}
+        >
+          {saving ? '保存中...' : '保存'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 
 function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settings, onUpdate, group }) {
   return (

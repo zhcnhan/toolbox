@@ -19,6 +19,7 @@ API 文档：https://www.remove.bg/api
 import requests
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
+from proxy import get_proxies_for_requests
 
 _API_URL = "https://api.remove.bg/v1.0/removebg"
 
@@ -48,7 +49,7 @@ class RemoveBgEngine(BaseEngine):
         files = {"image_file": image_bytes}
         data = {"size": "auto"}
 
-        resp = requests.post(_API_URL, headers=headers, files=files, data=data, timeout=120)
+        resp = requests.post(_API_URL, headers=headers, files=files, data=data, timeout=120, proxies=get_proxies_for_requests())
 
         if resp.status_code == 429:
             raise RuntimeError("remove.bg 免费额度已用完（每月 50 张），请下月重置或充值")

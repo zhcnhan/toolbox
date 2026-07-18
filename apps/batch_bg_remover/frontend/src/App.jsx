@@ -4,7 +4,7 @@ import SettingsPanel from './components/SettingsPanel';
 import DropZone from './components/DropZone';
 import ImageGrid from './components/ImageGrid';
 import PromptPanel from './components/PromptPanel';
-import { fetchEngines, uploadImages, removeBg, removeBgWithPrompt, getDownloadUrl, getDownloadZipUrl } from './api';
+import { fetchEngines, uploadImages, removeBg, removeBgWithPrompt, getDownloadUrl, getDownloadZipUrl, getProxyConfig, updateProxyConfig } from './api';
 
 /**
  * App.jsx — Batch Background Remover 主应用
@@ -48,9 +48,19 @@ export default function App() {
   // 提示词修正
   const [promptTarget, setPromptTarget] = useState(null);  // 正在修正的图片
 
-  // 加载引擎列表
+  // 代理配置（从服务器加载，持久化在服务端）
+  const [proxyConfig, setProxyConfig] = useState({ enabled: false, url: '' });
+
+  // 加载引擎列表和代理配置
   useEffect(() => {
     fetchEngines().then(setEngines).catch(console.error);
+    getProxyConfig().then(setProxyConfig).catch(() => {}); // 代理配置加载失败不影响使用
+  }, []);
+
+  // 保存代理配置到服务器
+  const handleProxySave = useCallback(async (enabled, url) => {
+    const result = await updateProxyConfig(enabled, url);
+    setProxyConfig(result.config);
   }, []);
 
   // 保存设置
@@ -274,6 +284,8 @@ export default function App() {
               engines={engines}
               settings={settings}
               onUpdate={updateSetting}
+              proxyConfig={proxyConfig}
+              onProxySave={handleProxySave}
             />
           </motion.div>
         )}

@@ -10,6 +10,7 @@ engines/replicate_engine.py — Replicate 云端引擎
 
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
+from proxy import apply_proxy_env, get_proxy_url
 
 
 @register_engine("replicate")
@@ -44,6 +45,7 @@ class ReplicateEngine(BaseEngine):
         import replicate
         import base64
 
+        apply_proxy_env()
         client = replicate.Client(api_token=api_key)
 
         # 将图片转为 data URI
@@ -57,7 +59,7 @@ class ReplicateEngine(BaseEngine):
         # Replicate 返回的是 URL
         if isinstance(output, str):
             import httpx
-            resp = httpx.get(output, timeout=60)
+            resp = httpx.get(output, timeout=60, proxy=get_proxy_url())
             resp.raise_for_status()
             return resp.content
 
@@ -73,6 +75,7 @@ class ReplicateEngine(BaseEngine):
         import replicate
         import base64
 
+        apply_proxy_env()
         client = replicate.Client(api_token=api_key)
 
         data_uri = f"data:image/png;base64,{base64.b64encode(image_bytes).decode()}"
@@ -87,7 +90,7 @@ class ReplicateEngine(BaseEngine):
 
         if isinstance(output, str):
             import httpx
-            resp = httpx.get(output, timeout=60)
+            resp = httpx.get(output, timeout=60, proxy=get_proxy_url())
             resp.raise_for_status()
             return resp.content
 

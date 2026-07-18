@@ -30,6 +30,9 @@ from pydantic import BaseModel
 from engine_registry import auto_discover_engines, get_engine, list_engines
 auto_discover_engines()
 
+# 代理配置管理
+from proxy import get_proxy_config, set_proxy_config
+
 # ---------------------------------------------------------------------------
 # 配置
 # ---------------------------------------------------------------------------
@@ -95,6 +98,27 @@ class RemoveBgPromptRequest(BaseModel):
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "service": "batch-bg-remover"}
+
+
+@app.get("/api/proxy")
+async def get_proxy():
+    """获取代理配置"""
+    return get_proxy_config()
+
+
+@app.put("/api/proxy")
+async def update_proxy(
+    enabled: bool = Form(False),
+    url: str = Form(""),
+):
+    """更新代理配置"""
+    validated_url = url.strip()
+    # 基本校验：如果启用代理，URL 必须以 http:// 或 https:// 开头
+    if enabled and validated_url:
+        if not validated_url.startswith(("http://", "https://")):
+            raise HTTPException(400, "代理地址必须以 http:// 或 https:// 开头")
+    config = set_proxy_config(enabled, validated_url)
+    return {"success": True, "config": config}
 
 
 @app.get("/api/engines")

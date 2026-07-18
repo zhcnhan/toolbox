@@ -18,6 +18,7 @@ API 文档：https://cagetu.com
 import requests
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
+from proxy import get_proxies_for_requests
 
 _API_URL = "https://cagetu.com/api/koutu/remove"
 
@@ -46,7 +47,7 @@ class CagetuEngine(BaseEngine):
         headers = {"Authorization": f"Bearer {api_key}"}
         files = {"image": image_bytes}
 
-        resp = requests.post(_API_URL, headers=headers, files=files, timeout=120)
+        resp = requests.post(_API_URL, headers=headers, files=files, timeout=120, proxies=get_proxies_for_requests())
 
         # HTTP 状态码错误
         if resp.status_code == 401:
@@ -81,7 +82,7 @@ class CagetuEngine(BaseEngine):
             raise RuntimeError("擦个图返回成功但无图片地址，请稍后重试")
 
         # 下载结果图片（URL 有效期 3 小时）
-        img_resp = requests.get(image_url, timeout=60)
+        img_resp = requests.get(image_url, timeout=60, proxies=get_proxies_for_requests())
         if not img_resp.ok:
             raise RuntimeError("下载擦个图结果图片失败，请稍后重试")
 

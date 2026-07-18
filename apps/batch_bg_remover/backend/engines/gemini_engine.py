@@ -15,6 +15,7 @@ import base64
 import requests
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
+from proxy import get_proxies_for_requests
 
 # 图像生成模型，按优先级排列
 _IMAGE_MODELS = [
@@ -66,7 +67,7 @@ class GeminiEngine(BaseEngine):
         for model in _IMAGE_MODELS:
             url = f"{_API_BASE}/{model}:generateContent?key={api_key}"
             try:
-                resp = requests.post(url, json=payload, timeout=90)
+                resp = requests.post(url, json=payload, timeout=90, proxies=get_proxies_for_requests())
                 if resp.status_code == 429:
                     last_error = f"{model} 额度已用完"
                     continue

@@ -15,6 +15,7 @@ import base64
 import requests
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
+from proxy import get_proxies_for_requests
 
 
 @register_engine("custom")
@@ -55,7 +56,7 @@ class CustomEngine(BaseEngine):
             }
         }
 
-        resp = requests.post(url, json=payload, timeout=120)
+        resp = requests.post(url, json=payload, timeout=120, proxies=get_proxies_for_requests())
         if resp.status_code == 400:
             if "API_KEY_INVALID" in resp.text or "API key not valid" in resp.text:
                 raise RuntimeError("API Key 无效，请检查设置中的 Key 是否正确")
@@ -105,7 +106,7 @@ class CustomEngine(BaseEngine):
             "modalities": ["image", "text"],
         }
 
-        resp = requests.post(url, json=payload, headers=headers, timeout=120)
+        resp = requests.post(url, json=payload, headers=headers, timeout=120, proxies=get_proxies_for_requests())
         if resp.status_code == 401:
             raise RuntimeError("API Key 无效，请检查设置中的 Key 是否正确")
         if resp.status_code == 429:
@@ -168,7 +169,7 @@ class CustomEngine(BaseEngine):
             "image": f"data:image/jpeg;base64,{img_b64}",
         }
 
-        resp = requests.post(url, json=payload, headers=headers, timeout=120)
+        resp = requests.post(url, json=payload, headers=headers, timeout=120, proxies=get_proxies_for_requests())
         if resp.status_code == 401:
             raise RuntimeError("API Key 无效，请检查设置中的 Key 是否正确")
         if resp.status_code == 429:
@@ -201,7 +202,7 @@ class CustomEngine(BaseEngine):
             return base64.b64decode(b64_data)
 
         # 下载图片
-        img_resp = requests.get(img_url, timeout=60)
+        img_resp = requests.get(img_url, timeout=60, proxies=get_proxies_for_requests())
         if not img_resp.ok:
             raise RuntimeError("下载结果图片失败，请稍后重试")
         return img_resp.content
