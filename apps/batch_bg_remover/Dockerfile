@@ -44,13 +44,24 @@ RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 COPY backend/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
+# 预下载 rembg U2Net 模型（首次使用免等待）
+RUN echo "[Docker] Pre-caching rembg model..." && \
+    python3 -c "from rembg.session_factory import new_session; new_session('u2net')" 2>/dev/null || \
+    echo "[Docker] rembg model will be downloaded on first use"
+
 # CLIPSeg 引擎依赖（可选，体积大 ~800MB）
 # 默认不装。需要时用 --build-arg INSTALL_CLIPSEG=true 启用
 ARG INSTALL_CLIPSEG=false
 RUN if [ "$INSTALL_CLIPSEG" = "true" ]; then \
-        echo "[Docker] Installing CLIPSeg deps (torch + transformers ~800MB)..."; \
-        pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu; \
-        pip install --no-cache-dir transformers; \
+        echo "[Docker] Installing CLIPSeg deps (torch + transformers)..."; \
+        pip install --no-cache-dir torch transformers && \
+        echo "[Docker] Pre-caching CLIPSeg model (CIDAS/clipseg-rd64-refined)..."; \
+        python3 -c "\
+import os; os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING']='1'; \
+from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation; \
+CLIPSegProcessor.from_pretrained('CIDAS/clipseg-rd64-refined'); \
+CLIPSegForImageSegmentation.from_pretrained('CIDAS/clipseg-rd64-refined')\
+"; \
     else \
         echo "[Docker] Skipping CLIPSeg deps (INSTALL_CLIPSEG=false). CLIPSeg engine will not be available."; \
     fi
