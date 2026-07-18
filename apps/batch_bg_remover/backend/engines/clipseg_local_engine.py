@@ -11,10 +11,15 @@ engines/clipseg_local_engine.py — 本地文本提示词分割引擎
 """
 
 import io
+from pathlib import Path
+
 import numpy as np
 from PIL import Image
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
+
+# 本地模型路径（可通过 snapshot_download 预下载，避免联网）
+_LOCAL_MODEL_DIR = Path("/app/clipseg-model")
 
 
 @register_engine("clipseg_local")
@@ -29,7 +34,12 @@ class CLIPSegLocalEngine(BaseEngine):
             from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation
             import torch
 
-            model_id = "CIDAS/clipseg-rd64-refined"
+            # 优先从本地路径加载（离线部署场景）
+            if _LOCAL_MODEL_DIR.exists():
+                model_id = str(_LOCAL_MODEL_DIR)
+            else:
+                model_id = "CIDAS/clipseg-rd64-refined"
+
             self._processor = CLIPSegProcessor.from_pretrained(model_id)
             self._model = CLIPSegForImageSegmentation.from_pretrained(model_id)
             self._device = "cuda" if torch.cuda.is_available() else "cpu"
