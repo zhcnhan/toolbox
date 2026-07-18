@@ -266,17 +266,20 @@ async def remove_background_with_prompt(
     image_bytes = file_path.read_bytes()
 
     # 为 CLIPSeg 准备 sensitivity 参数
-    kwargs = {}
-    if engine_id == "clipseg_local" and sensitivity is not None:
-        kwargs["sensitivity"] = max(0.0, min(1.0, sensitivity))
+    clip_sens = max(0.0, min(1.0, sensitivity)) if engine_id == "clipseg_local" and sensitivity is not None else None
 
     try:
         engine_info = engine.__class__.info()
         if engine_info.type == "local":
             loop = asyncio.get_event_loop()
-            result_bytes = await loop.run_in_executor(
-                _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key, **kwargs)
-            )
+            if clip_sens is not None:
+                result_bytes = await loop.run_in_executor(
+                    _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key, clip_sens)
+                )
+            else:
+                result_bytes = await loop.run_in_executor(
+                    _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key)
+                )
         elif engine_id == "custom":
             result_bytes = await engine.remove_bg_with_prompt(
                 image_bytes, prompt, api_key, base_url=base_url or "", model_name=model_name or ""
