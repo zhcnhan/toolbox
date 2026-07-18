@@ -23,6 +23,23 @@ from proxy import get_proxies_for_requests
 _API_URL = "https://cagetu.com/api/koutu/remove"
 
 
+def _detect_image_ext(data: bytes) -> str:
+    """根据文件头判断图片格式，返回扩展名（如 .jpg）"""
+    if len(data) < 12:
+        return ".jpg"
+    if data[:2] == b'\xff\xd8':
+        return ".jpg"
+    if data[:4] == b'\x89PNG':
+        return ".png"
+    if data[:4] in (b'GIF8', b'GIF7'):
+        return ".gif"
+    if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        return ".webp"
+    if data[:2] == b'BM':
+        return ".bmp"
+    return ".jpg"
+
+
 @register_engine("cagetu")
 class CagetuEngine(BaseEngine):
     """擦个图 (cagetu.com) 专业抠图引擎"""
@@ -45,7 +62,9 @@ class CagetuEngine(BaseEngine):
     def _call_cagetu(self, api_key: str, image_bytes: bytes) -> bytes:
         """调用擦个图 API"""
         headers = {"Authorization": f"Bearer {api_key}"}
-        files = {"image": image_bytes}
+        # 根据文件头判断真实格式，给 API 传正确的文件名后缀
+        ext = _detect_image_ext(image_bytes)
+        files = {"image": (f"image{ext}", image_bytes, f"image/{ext.lstrip('.')}")}
 
         resp = requests.post(_API_URL, headers=headers, files=files, timeout=120, proxies=get_proxies_for_requests())
 
