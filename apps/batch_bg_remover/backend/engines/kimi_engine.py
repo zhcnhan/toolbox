@@ -113,7 +113,8 @@ class KimiEngine(BaseEngine):
                 ]
             }],
             "temperature": 0.1,
-            "max_tokens": 4096,
+            "max_tokens": 1024,
+            "response_format": {"type": "json_object"},
         }
 
         url = f"{_API_BASE}/chat/completions"
