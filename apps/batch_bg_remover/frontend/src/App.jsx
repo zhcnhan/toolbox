@@ -96,9 +96,9 @@ export default function App() {
     if (engineId === 'clipseg_local' && settings.clipseg_sensitivity !== undefined) {
       extra.sensitivity = settings.clipseg_sensitivity;
     }
-    // Gemini Mask 模式
-    if (engineId === 'gemini_mask' && settings.mask_mode) {
-      extra.mask_mode = settings.mask_mode;
+    // Gemini Mask 模式（默认 polygon，强制覆盖旧 localStorage 残留）
+    if (engineId === 'gemini_mask') {
+      extra.mask_mode = settings.mask_mode || 'polygon';
     }
     return extra;
   }, [settings]);

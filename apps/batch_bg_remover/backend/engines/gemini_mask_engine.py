@@ -30,10 +30,17 @@ from rate_limiter import track_request
 logger = logging.getLogger(__name__)
 
 # ── 模型配置 ──────────────────────────────────────────────────
-_MODELS = [
+# polygon 模式：用文本模型，出 JSON 坐标（便宜）
+_POLYGON_MODELS = [
     "gemini-3.1-flash-lite",
     "gemini-3.5-flash",
     "gemini-3-flash-preview",
+]
+
+# mask 模式：用 image 模型，出 PNG 掩膜（精确）
+_MASK_MODELS = [
+    "gemini-3.1-flash-lite-image",   # 优先（便宜）
+    "gemini-3.1-flash-image",         # 次选
 ]
 
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -151,8 +158,7 @@ class GeminiMaskEngine(BaseEngine):
             ]}],
             "generationConfig": {"temperature": 0.1, "response_mime_type": "application/json"}
         }
-        last_error = ""
-        for model in _MODELS:
+        for model in _POLYGON_MODELS:
             url = f"{_API_BASE}/{model}:generateContent?key={api_key}"
             try:
                 resp = self._send_request(api_key, model, url, payload)
@@ -214,8 +220,7 @@ class GeminiMaskEngine(BaseEngine):
             ]}],
             "generationConfig": {"temperature": 0.1, "responseModalities": ["IMAGE", "TEXT"]}
         }
-        last_error = ""
-        for model in _MODELS:
+        for model in _MASK_MODELS:
             url = f"{_API_BASE}/{model}:generateContent?key={api_key}"
             try:
                 resp = self._send_request(api_key, model, url, payload)
