@@ -141,14 +141,14 @@ async def test_proxy(
     password: str = Form(""),
 ):
     """测试代理连通性"""
-    test_proxies = None
+    # 构建测试用的代理 URL 字符串
+    test_url = None
     if url:
         from proxy import _build_proxy_url
         test_config = {"enabled": True, "url": url, "auth_type": auth_type, "username": username, "password": password}
-        proxy_url = _build_proxy_url(test_config) or url
-        test_proxies = {"http": proxy_url, "https": proxy_url}
+        test_url = _build_proxy_url(test_config) or url
 
-    result = test_proxy_connectivity(proxy_url=test_proxies)
+    result = test_proxy_connectivity(proxy_url=test_url)
     return result
 
 
@@ -175,19 +175,13 @@ async def get_engines():
     }
 
 
-@app.get("/api/engine/gemini/usage")
-async def gemini_usage(api_key: str = ""):
-    """查询某 API Key 的今日用量"""
+@app.post("/api/engine/gemini/usage")
+async def gemini_usage(api_key: str = Form("")):
+    """查询 API Key 的今日用量（POST，Key 不暴露在 URL 中）"""
     if not api_key:
         return {"keys": list_all_keys()}
     tracker = track_request(api_key)
     return {"usage": tracker.get_info()}
-
-
-@app.get("/api/engine/gemini/all-keys")
-async def gemini_all_keys():
-    """列出所有已知 Key 的用量"""
-    return {"keys": list_all_keys()}
 
 
 # ============================================================

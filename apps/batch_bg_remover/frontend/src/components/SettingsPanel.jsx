@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 
 /**
@@ -81,18 +81,18 @@ export default function SettingsPanel({ engines, settings, onUpdate, proxyConfig
 function QuotaBadge({ apiKey }) {
   const [data, setData] = useState(null);
 
-  useEffect(() => {
+  const fetchUsage = useCallback(async () => {
     if (!apiKey) return;
-    const fetchUsage = () => {
-      fetch(`/api/engine/gemini/usage?api_key=${encodeURIComponent(apiKey)}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(d => setData(d?.usage || null))
-        .catch(() => {});
-    };
-    fetchUsage();
-    const iv = setInterval(fetchUsage, 30000);
-    return () => clearInterval(iv);
+    try {
+      const form = new FormData();
+      form.append('api_key', apiKey);
+      const res = await fetch('/api/engine/gemini/usage', { method: 'POST', body: form });
+      const json = await res.json();
+      setData(json.usage || null);
+    } catch {}
   }, [apiKey]);
+
+  useEffect(() => { fetchUsage(); }, [fetchUsage]);
 
   if (!data || !apiKey) return null;
 
