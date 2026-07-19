@@ -14,6 +14,7 @@ import base64
 import io
 import json
 import logging
+import sys
 from typing import Optional
 
 import requests
@@ -69,6 +70,8 @@ class KimiEngine(BaseEngine):
         api_key: Optional[str] = None,
         num_points: int = 35,
     ) -> bytes:
+        print("[KIMI_DEBUG] remove_bg_with_prompt called", flush=True)
+        print("[KIMI_DEBUG] prompt:", prompt, "key_len:", len(api_key or ""), file=sys.stderr, flush=True)
         if not api_key:
             raise ValueError("硅基流动 API Key 未提供，请在设置中填写")
 
