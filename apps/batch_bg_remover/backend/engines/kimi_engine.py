@@ -90,7 +90,15 @@ class KimiEngine(BaseEngine):
 
     def _get_polygon(self, api_key: str, prompt: str, image_bytes: bytes, num_points: int) -> list:
         """调用 Kimi API，获取多边形坐标"""
-        img_b64 = base64.b64encode(image_bytes).decode()
+        # 压缩图片到最长边 800px，加快 API 响应
+        img = Image.open(io.BytesIO(image_bytes))
+        max_size = 800
+        if img.width > max_size or img.height > max_size:
+            ratio = max_size / max(img.width, img.height)
+            img = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        img_b64 = base64.b64encode(buf.getvalue()).decode()
         user_prompt = _POLYGON_PROMPT.format(prompt=prompt, num_points=min(max(num_points, 15), 100))
 
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -110,7 +118,7 @@ class KimiEngine(BaseEngine):
 
         url = f"{_API_BASE}/chat/completions"
         logger.info("Kimi sending to %s | img=%d chars", _KIMI_MODEL, len(img_b64))
-        resp = requests.post(url, json=payload, headers=headers, timeout=180)
+        resp = requests.post(url, json=payload, headers=headers, timeout=120)
         logger.info("Kimi status: %s | len=%d", resp.status_code, len(resp.content))
 
         if resp.status_code == 429:
