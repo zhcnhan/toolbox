@@ -78,28 +78,27 @@ export default function SettingsPanel({ engines, settings, onUpdate, proxyConfig
 }
 
 // ── 配额显示组件 ──────────────────────────────────────────────
-function QuotaBadge() {
-  const [quota, setQuota] = useState(null);
+function QuotaBadge({ model }) {
+  const [data, setData] = useState(null);
 
   useEffect(() => {
-    fetch('/api/engine/gemini/quota')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setQuota(d))
-      .catch(() => setQuota(null));
-    // 每 30 秒刷新一次
-    const iv = setInterval(() => {
-      fetch('/api/engine/gemini/quota')
+    const fetchQuota = () => {
+      fetch(`/api/engine/gemini/quota?model=${encodeURIComponent(model)}`)
         .then(r => r.ok ? r.json() : null)
-        .then(d => setQuota(d))
+        .then(d => setData(d))
         .catch(() => {});
-    }, 30000);
+    };
+    fetchQuota();
+    const iv = setInterval(fetchQuota, 30000);
     return () => clearInterval(iv);
-  }, []);
+  }, [model]);
 
-  if (!quota) return null;
+  if (!data) return null;
 
-  const pct = quota.rpd_limit > 0
-    ? Math.round(quota.rpd_remaining / quota.rpd_limit * 100)
+  const usage = data.usage;
+  const limits = data.limits;
+  const pct = usage.rpd_limit > 0
+    ? Math.round(usage.rpd_remaining / usage.rpd_limit * 100)
     : 0;
 
   let color;
@@ -111,10 +110,11 @@ function QuotaBadge() {
     <div className="flex items-center gap-1.5 mt-1.5">
       <span className="text-xs text-white/30">📊</span>
       <span className={`text-xs ${color}`}>
-        今日剩余 {quota.rpd_remaining}/{quota.rpd_limit}
+        {usage.rpd_used}/{usage.rpd_limit} 次/日
       </span>
-      {pct <= 10 && (
-        <span className="text-xs text-red-400/60">⚠️ 即将用完</span>
+      <span className="text-xs text-white/20">| {limits.rpm} RPM</span>
+      {usage.rpd_exhausted && (
+        <span className="text-xs text-red-400">⚠️ 已用完</span>
       )}
     </div>
   );
@@ -157,8 +157,8 @@ function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settin
 
       <p className="text-white/40 text-xs leading-relaxed">{engine.description}</p>
 
-      {/* Gemini 配额信息 */}
-      {isGemini && isActive && <QuotaBadge />}
+      {/* Gemini 配额信息（按模型独立显示） */}
+      {isGemini && isActive && <QuotaBadge model="gemini-3.1-flash-lite" />}
 
       {/* CLIPSeg 灵敏度滑块 */}
       {engine.id === 'clipseg_local' && isActive && (

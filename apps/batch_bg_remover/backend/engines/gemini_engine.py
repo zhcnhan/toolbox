@@ -23,7 +23,7 @@ import requests
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
 from proxy import get_proxies_for_requests
-from rate_limiter import gemini_limiter
+from rate_limiter import get_limiter, get_model_info
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +61,10 @@ class GeminiEngine(BaseEngine):
             icon="cloud",
         )
 
-    def _call_with_retry(self, url: str, payload: dict) -> requests.Response:
+    def _call_with_retry(self, model_name: str, url: str, payload: dict) -> requests.Response:
         """带指数退避 + 随机抖动 + RPM 节流的 HTTP 请求"""
-        # RPM 节流 + RPD 计数
-        gemini_limiter.wait_and_count()
+        limiter = get_limiter(model_name)
+        limiter.wait_and_count()
 
         for attempt in range(_MAX_RETRIES + 1):
             resp = requests.post(
@@ -78,7 +78,7 @@ class GeminiEngine(BaseEngine):
                 jitter = random.uniform(0, delay * 0.5)
                 sleep_time = delay + jitter
                 logger.warning(
-                    f"Gemini 429 限流 (attempt {attempt+1}/{_MAX_RETRIES})，"
+                    f"Gemini 429 限流 ({model_name}, attempt {attempt+1}/{_MAX_RETRIES})，"
                     f"等待 {sleep_time:.1f}s 后重试..."
                 )
                 time.sleep(sleep_time)
@@ -86,14 +86,6 @@ class GeminiEngine(BaseEngine):
 
     def _call_gemini(self, api_key: str, prompt: str, image_bytes: bytes) -> bytes:
         """调用 Gemini API，尝试多个图像生成模型，返回图片 bytes"""
-        # 先检查配额
-        quota = gemini_limiter.get_quota()
-        if quota["rpd_remaining"] <= 0:
-            raise RuntimeError(
-                f"Gemini 今日配额已用完（{quota['rpd_limit']} 次/日）。"
-                f"绑卡升级可提升至 1,500 次/日。实时配额：https://aistudio.google.com/rate-limit"
-            )
-
         img_b64 = base64.b64encode(image_bytes).decode()
 
         payload = {
@@ -110,12 +102,24 @@ class GeminiEngine(BaseEngine):
 
         last_error = ""
         for model in _IMAGE_MODELS:
+            # 检查模型配额
+            model_info = get_model_info(model)
+            limiter = get_limiter(model)
+            quota = limiter.get_quota()
+            if quota["rpd_exhausted"]:
+                last_error = (
+                    f"{model} 今日配额已用完（{quota['rpd_limit']} 次/日）。"
+                    f"查看实时配额：https://aistudio.google.com/rate-limit"
+                )
+                continue
+
             url = f"{_API_BASE}/{model}:generateContent?key={api_key}"
             try:
-                resp = self._call_with_retry(url, payload)
+                resp = self._call_with_retry(model, url, payload)
                 if resp.status_code == 429:
                     last_error = (
-                        f"{model} 请求过频或免费额度已用完。"
+                        f"{model} 请求过频或配额已用完。"
+                        f"该模型限速：{model_info['rpm']} RPM / {model_info['rpd']} RPD。"
                         f"查看实时配额：https://aistudio.google.com/rate-limit"
                     )
                     continue
