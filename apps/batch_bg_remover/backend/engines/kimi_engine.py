@@ -102,7 +102,6 @@ class KimiEngine(BaseEngine):
             }],
             "temperature": 0.1,
             "max_tokens": 4096,
-            "response_format": {"type": "json_object"},
         }
 
         last_error = ""
@@ -124,8 +123,27 @@ class KimiEngine(BaseEngine):
                     last_error = f"{model} 未返回有效内容"
                     continue
 
+                # 提取 JSON（Kimi 可能输出 markdown 包裹或其他文字）
+                content = content.strip()
+                if "```" in content:
+                    for block in content.split("```"):
+                        block = block.strip()
+                        if block.startswith("json"):
+                            block = block[4:].strip()
+                        if block.startswith("{"):
+                            content = block
+                            break
+
+                # 找第一个 { 到最后一个 } 之间的内容
+                start = content.find("{")
+                end = content.rfind("}")
+                if start >= 0 and end > start:
+                    content = content[start:end+1]
+                else:
+                    raise ValueError("未找到 JSON")
+
                 result = json.loads(content)
-                polygon = result.get("polygon", [])
+                polygon = result.get("polygon") or result.get("points") or result.get("coordinates") or result.get("polygons") or []
                 if isinstance(polygon, list) and len(polygon) >= 3:
                     return polygon
                 last_error = f"{model} 未识别出目标物体"
