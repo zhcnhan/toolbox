@@ -166,14 +166,14 @@ _TEST_URLS = [
 
 
 def test_proxy_connectivity(proxy_url: str | None = None, timeout: int = 10) -> dict:
-    """测试代理连通性。返回测试结果。
+    """测试代理连通性。逐个测试多个目标网站，返回完整结果列表。
 
     Args:
         proxy_url: 要测试的代理地址。为 None 时使用当前配置。
         timeout: 每个测试请求的超时秒数。
 
     Returns:
-        {"success": bool, "latency_ms": int, "tested_url": str, "error": str}
+        {"success": bool, "results": list[dict], "summary": str}
     """
     import time
     import urllib.request
@@ -184,8 +184,9 @@ def test_proxy_connectivity(proxy_url: str | None = None, timeout: int = 10) -> 
         test_proxies = get_proxies_for_requests()
 
     if not test_proxies:
-        return {"success": False, "error": "代理未启用或未配置"}
+        return {"success": False, "results": [], "summary": "代理未启用或未配置"}
 
+    results = []
     for test_url in _TEST_URLS:
         try:
             start = time.time()
@@ -194,25 +195,37 @@ def test_proxy_connectivity(proxy_url: str | None = None, timeout: int = 10) -> 
             req = urllib.request.Request(test_url, method="HEAD")
             resp = opener.open(req, timeout=timeout)
             latency = int((time.time() - start) * 1000)
-            return {
-                "success": True,
+            results.append({
+                "url": test_url,
+                "ok": True,
                 "latency_ms": latency,
-                "tested_url": test_url,
-                "status_code": resp.status,
+                "status": resp.status,
                 "error": "",
-            }
+            })
         except urllib.error.HTTPError as e:
-            # HTTP 错误也说明连接成功了（代理正常），只是目标 URL 返回了非 200
+            # HTTP 错误也说明代理是通的
             latency = int((time.time() - start) * 1000)
-            return {
-                "success": True,
+            results.append({
+                "url": test_url,
+                "ok": True,
                 "latency_ms": latency,
-                "tested_url": test_url,
-                "status_code": e.code,
-                "error": f"HTTP {e.code}（连接正常，目标 URL 返回非 200）",
-            }
+                "status": e.code,
+                "error": f"HTTP {e.code}",
+            })
         except Exception as e:
-            last_error = f"{type(e).__name__}: {str(e)[:100]}"
-            continue
+            results.append({
+                "url": test_url,
+                "ok": False,
+                "latency_ms": 0,
+                "status": None,
+                "error": f"{type(e).__name__}: {str(e)[:80]}",
+            })
 
-    return {"success": False, "error": f"所有测试地址均连接失败。最后错误：{last_error}"}
+    ok_count = sum(1 for r in results if r["ok"])
+    total = len(results)
+
+    return {
+        "success": ok_count > 0,
+        "results": results,
+        "summary": f"通过 {ok_count}/{total}",
+    }

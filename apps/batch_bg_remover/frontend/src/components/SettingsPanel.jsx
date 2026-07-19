@@ -375,11 +375,23 @@ function ProxySettings({ proxyConfig, onProxySave }) {
 
         {/* 测试结果 */}
         {testResult && (
-          <div className={`text-xs p-2 rounded-lg ${testResult.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-            {testResult.success
-              ? `✅ 连接成功（${testResult.latency_ms}ms）`
-              : `❌ 连接失败：${testResult.error}`
-            }
+          <div className="space-y-1.5">
+            <div className={`text-xs p-2 rounded-lg ${testResult.success ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
+              <div className={testResult.success ? 'text-emerald-400' : 'text-red-400'}>
+                {testResult.summary}
+              </div>
+            </div>
+            {testResult.results && testResult.results.map((r, i) => (
+              <div key={i} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${r.ok ? 'bg-emerald-500/5' : 'bg-red-500/5'}`}>
+                <span className="text-white/60">{r.url.replace('https://', '')}</span>
+                <span className={r.ok ? 'text-emerald-400' : 'text-red-400'}>
+                  {r.ok
+                    ? `${r.latency_ms}ms`
+                    : r.error.split(':')[1]?.trim()?.slice(0, 20) || '不通'
+                  }
+                </span>
+              </div>
+            ))}
           </div>
         )}
 
