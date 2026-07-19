@@ -2,27 +2,41 @@
 engines/gemini_engine.py — Google Gemini 云端引擎
 
 使用 Gemini API 进行抠图和文本提示词分割。
-支持图像生成的模型（按优先级尝试）：
-  1. gemini-2.5-flash  (Free Tier，有免费额度，无需绑卡)
-  2. gemini-2.5-pro    (付费版，质量更高)
+模型（按优先级）：
+  1. gemini-2.5-flash  — 优先使用，速度快，成本低
+
+速率限制：
+  https://ai.dev/gemini-api/docs/rate-limits
+  https://aistudio.google.com/rate-limit （查看实时配额）
+  遇到 429 时采用指数退避 + 随机抖动重试。
 
 用户需要在 https://aistudio.google.com/apikey 获取 API Key。
-安装依赖：pip install requests
 """
 
 import base64
+import logging
+import random
+import time
+
 import requests
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
 from proxy import get_proxies_for_requests
 
-# 图像生成模型，按优先级排列
+logger = logging.getLogger(__name__)
+
+# 模型优先级
 _IMAGE_MODELS = [
     "gemini-2.5-flash",
     "gemini-2.5-pro",
 ]
 
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+# 速率限制重试配置
+_MAX_RETRIES = 3
+_BASE_DELAY = 1.0
+_MAX_DELAY = 15.0
 
 
 @register_engine("gemini")
@@ -44,6 +58,26 @@ class GeminiEngine(BaseEngine):
             icon="cloud",
         )
 
+    def _call_with_retry(self, url: str, payload: dict) -> requests.Response:
+        """带指数退避 + 随机抖动重试的 HTTP 请求"""
+        for attempt in range(_MAX_RETRIES + 1):
+            resp = requests.post(
+                url, json=payload, timeout=90,
+                proxies=get_proxies_for_requests()
+            )
+            if resp.status_code != 429:
+                return resp
+            if attempt < _MAX_RETRIES:
+                delay = min(_BASE_DELAY * (2 ** attempt), _MAX_DELAY)
+                jitter = random.uniform(0, delay * 0.5)
+                sleep_time = delay + jitter
+                logger.warning(
+                    f"Gemini 429 限流 (attempt {attempt+1}/{_MAX_RETRIES})，"
+                    f"等待 {sleep_time:.1f}s 后重试..."
+                )
+                time.sleep(sleep_time)
+        return resp
+
     def _call_gemini(self, api_key: str, prompt: str, image_bytes: bytes) -> bytes:
         """调用 Gemini API，尝试多个图像生成模型，返回图片 bytes"""
         img_b64 = base64.b64encode(image_bytes).decode()
@@ -64,9 +98,12 @@ class GeminiEngine(BaseEngine):
         for model in _IMAGE_MODELS:
             url = f"{_API_BASE}/{model}:generateContent?key={api_key}"
             try:
-                resp = requests.post(url, json=payload, timeout=90, proxies=get_proxies_for_requests())
+                resp = self._call_with_retry(url, payload)
                 if resp.status_code == 429:
-                    last_error = f"{model} 额度已用完"
+                    last_error = (
+                        f"{model} 请求过频或免费额度已用完。"
+                        f"查看实时配额：https://aistudio.google.com/rate-limit"
+                    )
                     continue
                 if resp.status_code == 404:
                     last_error = f"{model} 模型不存在"
@@ -110,7 +147,11 @@ class GeminiEngine(BaseEngine):
         if status == 403:
             return "Gemini API 权限不足，请确认 Key 已开通图像生成权限"
         if status == 429:
-            return "Gemini 免费额度已用完，请等待额度刷新（通常每分钟/每天重置）或开启付费"
+            return (
+                "Gemini 请求过频或当日额度已用完。"
+                "免费层每日限制 250 次请求，可在以下链接查看实时配额："
+                "https://aistudio.google.com/rate-limit"
+            )
         if status == 404:
             return "Gemini 模型不存在或已下线，请换其他引擎"
         if status >= 500:

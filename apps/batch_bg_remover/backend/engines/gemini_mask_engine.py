@@ -6,12 +6,26 @@ engines/gemini_mask_engine.py — Gemini 智能目标定位引擎
   在本地进行精确分割和透明化处理。
 
 与传统的 Gemini 引擎区别：
-  - 传统的 Gemini 引擎：让 Gemini 直接生成透明背景图（图生图，Token 高）
-  - 本引擎：让 Gemini 返回物体轮廓坐标 → 本地在原图上裁剪（保留原图分辨率，Token 极低）
+  - 传统引擎：让 Gemini 直接生成透明背景图（图生图，Token 高，分辨率受限）
+  - 本引擎：  让 Gemini 返回物体轮廓坐标 → 本地在原图上裁剪（保留原图分辨率，Token 极低）
 
 模型（按优先级）：
-  1. gemini-2.5-flash   — 支持 JSON 结构化输出，速度快，成本低
-  2. gemini-2.5-pro     — 质量更高，但较慢
+  1. gemini-2.5-flash  — 优先使用，速度快，成本低，支持 JSON 结构化输出
+
+速率限制（Gemini 2.5 Flash，2026.07 参考值）：
+  https://ai.google.dev/gemini-api/docs/rate-limits
+  https://aistudio.google.com/rate-limit （查看你账号的实时配额）
+
+  ┌──────────┬──────┬──────────┬───────┐
+  │ Tier     │ RPM  │ TPM      │ RPD   │
+  ├──────────┼──────┼──────────┼───────┤
+  │ Free     │  10  │ 250,000  │   250 │  （无需绑卡）
+  │ Tier 1   │ 300  │ 2,000,000│ 1,500 │  （绑卡）
+  │ Tier 2   │2000  │ 4,000,000│10,000 │  （累计消费 >$250）
+  │ Tier 3   │ 4000+│ 8,000,000+│ 自定义│  （累计消费 >$1,000）
+  └──────────┴──────┴──────────┴───────┘
+
+  遇到 429（RESOURCE_EXHAUSTED）时采用指数退避 + 随机抖动重试。
 
 用户需要在 https://aistudio.google.com/apikey 获取 API Key。
 """
@@ -20,6 +34,8 @@ import base64
 import io
 import json
 import logging
+import random
+import time
 from typing import Optional
 
 import requests
@@ -31,7 +47,8 @@ from proxy import get_proxies_for_requests
 
 logger = logging.getLogger(__name__)
 
-# 模型优先级
+# ── 模型配置 ──────────────────────────────────────────────────
+# 优先使用 gemini-2.5-flash，失败后尝试 pro 兜底
 _MODELS = [
     "gemini-2.5-flash",
     "gemini-2.5-pro",
@@ -39,7 +56,12 @@ _MODELS = [
 
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
-# 分割提示词
+# ── 速率限制重试配置 ──────────────────────────────────────────
+_MAX_RETRIES = 3            # 429 后最多重试次数
+_BASE_DELAY = 1.0           # 初始等待秒数
+_MAX_DELAY = 15.0           # 最大等待秒数
+
+# ── 分割提示词 ─────────────────────────────────────────────────
 _SEGMENT_PROMPT = """You are a precise image segmentation assistant.
 
 Given an image and a description of an object, you MUST:
@@ -105,6 +127,34 @@ class GeminiMaskEngine(BaseEngine):
     # 内部方法
     # ------------------------------------------------------------------
 
+    def _call_with_retry(self, url: str, payload: dict) -> requests.Response:
+        """带指数退避 + 随机抖动重试的 HTTP 请求
+
+        官方文档推荐策略：
+        https://ai.google.dev/gemini-api/docs/rate-limits#handling-rate-limits
+        """
+        for attempt in range(_MAX_RETRIES + 1):
+            resp = requests.post(
+                url, json=payload, timeout=90,
+                proxies=get_proxies_for_requests()
+            )
+
+            if resp.status_code != 429:
+                return resp  # 非限流错误，直接返回
+
+            # 429：触发指数退避，公式：base * 2^attempt + random(0, base * 2^(attempt-1))
+            if attempt < _MAX_RETRIES:
+                delay = min(_BASE_DELAY * (2 ** attempt), _MAX_DELAY)
+                jitter = random.uniform(0, delay * 0.5)
+                sleep_time = delay + jitter
+                logger.warning(
+                    f"Gemini 429 限流 (attempt {attempt+1}/{_MAX_RETRIES})，"
+                    f"等待 {sleep_time:.1f}s 后重试..."
+                )
+                time.sleep(sleep_time)
+
+        return resp  # 重试用完，返回最后一次的 429 响应
+
     def _get_segmentation(self, api_key: str, prompt: str, image_bytes: bytes) -> dict:
         """调用 Gemini API，获取物体轮廓坐标（JSON）"""
         img_b64 = base64.b64encode(image_bytes).decode()
@@ -127,16 +177,17 @@ class GeminiMaskEngine(BaseEngine):
         for model in _MODELS:
             url = f"{_API_BASE}/{model}:generateContent?key={api_key}"
             try:
-                resp = requests.post(
-                    url, json=payload, timeout=90,
-                    proxies=get_proxies_for_requests()
-                )
+                resp = self._call_with_retry(url, payload)
 
                 if resp.status_code == 429:
-                    last_error = f"{model} 免费额度已用完"
+                    last_error = (
+                        f"{model} 请求过频或免费额度已用完。"
+                        f"免费层每日限制 250 次请求（RPD），查看实时配额："
+                        f"https://aistudio.google.com/rate-limit"
+                    )
                     continue
                 if resp.status_code == 403:
-                    last_error = f"API Key 无权限或已过期，请检查"
+                    last_error = f"{model} API Key 无权限或已过期，请检查"
                     continue
                 if resp.status_code == 404:
                     last_error = f"{model} 模型不存在，尝试下一个"
@@ -148,7 +199,7 @@ class GeminiMaskEngine(BaseEngine):
                 data = resp.json()
                 candidates = data.get("candidates", [])
                 if not candidates:
-                    last_error = "Gemini 未返回任何结果"
+                    last_error = f"{model} 未返回任何结果"
                     continue
 
                 # 提取 JSON 文本
@@ -159,7 +210,7 @@ class GeminiMaskEngine(BaseEngine):
                         text += part["text"]
 
                 if not text:
-                    last_error = "Gemini 返回了结果但不含有效 JSON"
+                    last_error = f"{model} 返回了结果但不含有效 JSON"
                     continue
 
                 # 解析 JSON
@@ -170,7 +221,7 @@ class GeminiMaskEngine(BaseEngine):
                         continue
                     return result
                 except json.JSONDecodeError:
-                    last_error = "Gemini 返回了非 JSON 格式的结果"
+                    last_error = f"{model} 返回了非 JSON 格式的结果"
                     continue
 
             except requests.exceptions.Timeout:
@@ -229,7 +280,11 @@ class GeminiMaskEngine(BaseEngine):
         if status == 403:
             return "Gemini API 权限不足，请确认 Key 已开通或已绑定支付方式"
         if status == 429:
-            return "Gemini 免费额度已用完，请等待额度刷新或开启付费"
+            return (
+                "Gemini 请求过频或当日额度已用完。"
+                "免费层每日限制 250 次请求，可在以下链接查看实时配额："
+                "https://aistudio.google.com/rate-limit"
+            )
         if status >= 500:
             return "Gemini 服务暂时不可用，请稍后重试"
         return f"Gemini 调用失败（HTTP {status}），请稍后重试"
