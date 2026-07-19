@@ -122,7 +122,7 @@ class KimiEngine(BaseEngine):
     # ============================================================
 
     def _get_polygon(self, api_key: str, prompt: str, image_bytes: bytes) -> list:
-        """调用 Kimi API，获取多边形坐标（固定 ~50 点）"""
+        """调用 Kimi API，获取多边形坐标（固定 ~50 点），自动重试"""
         # 压缩图片到最长边 800px，加快 API 响应
         img = Image.open(io.BytesIO(image_bytes))
         if img.mode == "RGBA":
@@ -141,57 +141,115 @@ class KimiEngine(BaseEngine):
 
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
-        payload = {
-            "model": _KIMI_MODEL,
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": user_prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
-                ]
-            }],
-            "temperature": 0.01,
-            "max_tokens": 2048,
-            "enable_thinking": False,
-        }
-
         url = f"{_API_BASE}/chat/completions"
-        logger.info("Kimi sending to %s | img=%d chars", _KIMI_MODEL, len(img_b64))
-        resp = requests.post(url, json=payload, headers=headers, timeout=120)
-        logger.info("Kimi status: %s | len=%d", resp.status_code, len(resp.content))
+        last_error = ""
 
-        if resp.status_code == 429:
-            raise RuntimeError("Kimi 免费额度已用完")
-        if not resp.ok:
-            raise RuntimeError(f"Kimi HTTP {resp.status_code}: {resp.text[:200]}")
+        # 自动重试 3 次（Kimi-K2.6 偶发返回空 content 或无效 JSON，重试通常能解决）
+        for attempt in range(3):
+            payload = {
+                "model": _KIMI_MODEL,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": user_prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
+                    ]
+                }],
+                "temperature": 0.01,
+                "max_tokens": 2048,
+                "enable_thinking": False,
+            }
 
-        data = resp.json()
-        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        logger.info("Kimi response: %s", content[:400] if content else "(empty)")
-        if not content:
-            raise RuntimeError("Kimi 未返回有效内容")
+            logger.info("Kimi sending [attempt %d/3] | img=%d chars", attempt + 1, len(img_b64))
+            resp = requests.post(url, json=payload, headers=headers, timeout=120)
+            logger.info("Kimi status: %s | len=%d", resp.status_code, len(resp.content))
 
-        # 提取 JSON（兜底兼容 markdown 包裹）
-        content = content.strip()
-        if "```" in content:
-            for block in content.split("```"):
+            if resp.status_code == 429:
+                raise RuntimeError("Kimi 免费额度已用完")
+            if not resp.ok:
+                last_error = f"Kimi HTTP {resp.status_code}: {resp.text[:200]}"
+                continue
+
+            data = resp.json()
+            message = data.get("choices", [{}])[0].get("message", {})
+            # Kimi 有时把结果放在 reasoning_content 而非 content 中
+            content = message.get("content", "") or message.get("reasoning_content", "")
+            logger.info("Kimi response [attempt %d/3]: %s", attempt + 1, content[:300] if content else "(empty)")
+
+            if not content:
+                last_error = "Kimi 未返回有效内容"
+                continue
+
+            # 提取 JSON 对象（兼容各种格式：纯 JSON、markdown 包裹、前后有多余文字）
+            json_str = self._extract_json(content)
+            if not json_str:
+                last_error = "Kimi 未返回有效 JSON"
+                continue
+
+            try:
+                result = json.loads(json_str)
+            except json.JSONDecodeError:
+                last_error = "Kimi 返回了格式错误的 JSON"
+                continue
+
+            polygon = result.get("polygon") or result.get("points") or result.get("coordinates") or []
+            if isinstance(polygon, list) and len(polygon) >= 3:
+                return polygon
+
+            last_error = "Kimi 未能识别出目标物体"
+            # 如果识别结果为空的 polygon 列表，不再重试（模型明确表示没找到）
+            if isinstance(polygon, list) and len(polygon) == 0:
+                break
+
+        raise RuntimeError(last_error)
+
+    @staticmethod
+    def _extract_json(text: str) -> str:
+        """
+        从模型返回文本中提取 JSON 对象字符串。
+
+        兼容：
+        - 纯 JSON：{"polygon": [[...]]}
+        - Markdown 包裹：```json ... ``` 或 ``` ... ```
+        - 前后有多余文字：如 "Here is the result: {...}"
+        - 多个花括号嵌套：取最外层匹配的一对 {}
+        """
+        text = text.strip()
+
+        # 去掉 markdown 代码块标记
+        if "```" in text:
+            for block in text.split("```"):
                 block = block.strip()
                 if block.startswith("json"):
                     block = block[4:].strip()
-                if block.startswith("{"):
-                    content = block
+                if block.startswith("{") or block.startswith("["):
+                    text = block
                     break
 
-        start = content.find("{")
-        end = content.rfind("}")
-        if start >= 0 and end > start:
-            content = content[start:end + 1]
-        else:
-            raise RuntimeError("Kimi 未返回有效 JSON")
+        # 找最外层的一对 {}（处理嵌套花括号）
+        start = -1
+        depth = 0
+        for i, ch in enumerate(text):
+            if ch == "{":
+                if depth == 0:
+                    start = i
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0 and start >= 0:
+                    return text[start:i + 1]
 
-        result = json.loads(content)
-        polygon = result.get("polygon") or result.get("points") or result.get("coordinates") or []
-        if isinstance(polygon, list) and len(polygon) >= 3:
-            return polygon
+        # 如果没找到 {}，试试找最外层的 []
+        start = -1
+        depth = 0
+        for i, ch in enumerate(text):
+            if ch == "[":
+                if depth == 0:
+                    start = i
+                depth += 1
+            elif ch == "]":
+                depth -= 1
+                if depth == 0 and start >= 0:
+                    return text[start:i + 1]
 
-        raise RuntimeError("Kimi 未能识别出目标物体")
+        return ""

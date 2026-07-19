@@ -61,17 +61,23 @@
 **调用链路**：
 ```
 前端 slider(num_points:15-500) → main.py/n_pts clamp(15-500) → remove_bg_with_prompt()
-  → _get_polygon(): 固定 API 请求 50 点 → _catmull_rom_spline(): 插值到 num_points → _apply_mask(): 生成掩膜
+  → _get_polygon(): 固定 API 请求 50 点（自动重试 3 次） → matting_cut(): 预处理 + 插值 + 掩膜
 ```
 
 **API 配置**：
 - **模型**：`Pro/moonshotai/Kimi-K2.6`（通过硅基流动 API）
 - **端点**：`https://api.siliconflow.cn/v1/chat/completions`
-- **max_tokens**：4096（够了，不要无限）
-- **response_format**：`{"type": "json_object"}`（强制纯 JSON 输出）
+- **max_tokens**：2048（够了，不要无限）
+- **response_format**：**不设置**（之前加了但 Kimi-K2.6 偶发因此返回空 content，改为手动 JSON 提取）
 - **enable_thinking**：`False`（超关键！关了才快，否则 CoT 思考几十秒）
 - **固定 API 点数**：50（不多不少，多了超时、少了不够插值）
 - **timeout**：120s
+- **重试机制**：自动重试 3 次（Kimi-K2.6 偶发返回空 content 或无效 JSON，重试通常能解决）
+
+**JSON 提取逻辑**（`_extract_json`）：
+- 兼容纯 JSON、markdown 包裹、前后多余文字
+- 用花括号深度计数找到最外层 `{}`
+- 同时兜底检查 `reasoning_content` 字段（Kimi 有时放这里）
 
 #### 🌟 踩坑历史（必须记住）
 
@@ -83,6 +89,7 @@
 | 4 | RGBA 图片上传崩溃 | PNG 透明通道 → 存 JPEG 报错 | 加 `img.convert("RGB")` |
 | 5 | 前端滑块最大 100 不够 | 插值后希望更精细 | 改到 500 |
 | 6 | 提示词效果差 | 原版提示词太弱，轮廓不在物体边缘 | 通用优化提示词：强调边缘贴合、薄片/凹陷/尖角 |
+| 7 | Kimi 间歇性返回无效 JSON | Kimi-K2.6 偶发波动：空 content、无效 JSON | 添加 3 次自动重试 + `_extract_json()` 花括号深度解析 + 兜底 `reasoning_content` |
 
 #### 提示词优化要点
 
@@ -351,3 +358,4 @@ cd cli-tools/git-mirror && python -m git_mirror sync toolbox
 | 2026-07 | CLIPSeg 下载 `callback` 参数移除 | `main.py` |
 | 2026-07 | 提取公共掩膜处理到 `matting.py`，Gemini Mask 支持 `num_points` | `matting.py`, `gemini_mask_engine.py`, `kimi_engine.py`, `main.py` |
 | 2026-07 | macOS 部署修复：启动器改为生产模式单进程、添加国内镜像源、补充安全弹窗说明 | `make-mac-app.sh`, `batch-bg-mac.sh`, `MAC.md` |
+| 2026-07 | Kimi 间歇性无效 JSON：添加 3 次自动重试 + 花括号深度解析 + reasoning_content 兜底 | `kimi_engine.py` |
