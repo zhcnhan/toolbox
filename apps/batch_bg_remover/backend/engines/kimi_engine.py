@@ -109,18 +109,21 @@ class KimiEngine(BaseEngine):
             url = f"{_API_BASE}/chat/completions"
             try:
                 # 硅基流动在国内可直接访问，不走代理
+                logger.info("Kimi sending to %s (%d chars image)...", model, len(img_b64))
                 resp = requests.post(url, json=payload, headers=headers, timeout=90)
+                logger.info("Kimi %s status: %s", model, resp.status_code)
                 if resp.status_code == 429:
                     last_error = f"{model} 免费额度已用完"
                     continue
                 if not resp.ok:
                     last_error = f"{model} HTTP {resp.status_code}: {resp.text[:200]}"
+                    logger.warning("Kimi %s error body: %s", model, resp.text[:300])
                     continue
 
                 data = resp.json()
+                logger.info("Kimi %s choices: %d", model, len(data.get("choices", [])))
                 content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                logger.info("=== Kimi %s raw response ===", model)
-                logger.info("content: %s", content[:300] if content else "(empty)")
+                logger.info("Kimi %s response: %s", model, content[:400] if content else "(empty)")
                 if not content:
                     last_error = f"{model} 未返回有效内容"
                     continue
