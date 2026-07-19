@@ -16,9 +16,6 @@ engines/gemini_engine.py — Google Gemini 云端引擎
 
 import base64
 import logging
-import random
-import time
-
 import requests
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
@@ -36,10 +33,8 @@ _IMAGE_MODELS = [
 
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
-# 速率限制重试配置
-_MAX_RETRIES = 3
-_BASE_DELAY = 1.0
-_MAX_DELAY = 15.0
+# 注意：不设 429 重试。遇 429 说明配额已超，重试只会浪费次数。
+# 自适应 RPM 已在客户端节流，模型 fallback 由上层循环处理。
 
 
 @register_engine("gemini")
@@ -61,32 +56,24 @@ class GeminiEngine(BaseEngine):
             icon="cloud",
         )
 
-    def _call_with_retry(self, api_key: str, model_name: str, url: str, payload: dict) -> requests.Response:
-        """带指数退避 + 随机抖动 + 自适应 RPM 节流的 HTTP 请求"""
+    def _send_request(self, api_key: str, model_name: str, url: str, payload: dict) -> requests.Response:
+        """发送一次 Gemini API 请求，含自适应 RPM 节流
+
+        原则：不重试 429，避免浪费配额。由上层模型循环做 fallback。
+        """
         tracker = track_request(api_key)
+        tracker.wait()  # RPM 节流
 
-        for attempt in range(_MAX_RETRIES + 1):
-            tracker.wait()
+        resp = requests.post(
+            url, json=payload, timeout=90,
+            proxies=get_proxies_for_requests()
+        )
 
-            resp = requests.post(
-                url, json=payload, timeout=90,
-                proxies=get_proxies_for_requests()
-            )
-            if resp.status_code == 429:
-                tracker.record_429()
-                if attempt < _MAX_RETRIES:
-                    delay = min(_BASE_DELAY * (2 ** attempt), _MAX_DELAY)
-                    jitter = random.uniform(0, delay * 0.5)
-                    sleep_time = delay + jitter
-                    logger.warning(
-                        f"429 ({model_name}): attempt {attempt+1}/{_MAX_RETRIES}, "
-                        f"wait {sleep_time:.1f}s"
-                    )
-                    time.sleep(sleep_time)
-                continue
-
+        if resp.status_code == 429:
+            tracker.record_429()
+        else:
             tracker.record_success()
-            return resp
+
         return resp
 
     def _call_gemini(self, api_key: str, prompt: str, image_bytes: bytes) -> bytes:
@@ -109,7 +96,7 @@ class GeminiEngine(BaseEngine):
         for model in _IMAGE_MODELS:
             url = f"{_API_BASE}/{model}:generateContent?key={api_key}"
             try:
-                resp = self._call_with_retry(api_key, model, url, payload)
+                resp = self._send_request(api_key, model, url, payload)
                 if resp.status_code == 429:
                     last_error = (
                         f"{model} 请求过频或每日配额已用完。"

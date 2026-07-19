@@ -35,8 +35,7 @@ import base64
 import io
 import json
 import logging
-import random
-import time
+
 from typing import Optional
 
 import requests
@@ -58,11 +57,6 @@ _MODELS = [
 ]
 
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
-
-# ── 速率限制重试配置 ──────────────────────────────────────────
-_MAX_RETRIES = 3            # 429 后最多重试次数
-_BASE_DELAY = 1.0           # 初始等待秒数
-_MAX_DELAY = 15.0           # 最大等待秒数
 
 # ── 分割提示词 ─────────────────────────────────────────────────
 _SEGMENT_PROMPT = """You are a precise image segmentation assistant.
@@ -130,39 +124,29 @@ class GeminiMaskEngine(BaseEngine):
     # 内部方法
     # ------------------------------------------------------------------
 
-    def _call_with_retry(self, api_key: str, model_name: str, url: str, payload: dict) -> requests.Response:
-        """带指数退避 + 随机抖动 + 自适应 RPM 节流的 HTTP 请求
+    # ── 已知的模型调用配置 ──────────────────────────────────
+    # 不设重试：429 意味着配额已超，重试只会浪费次数
+    _REQUEST_TIMEOUT = 90
 
-        官方文档推荐策略：
-        https://ai.google.dev/gemini-api/docs/rate-limits#handling-rate-limits
+    def _send_request(self, api_key: str, model_name: str, url: str, payload: dict) -> requests.Response:
+        """发送一次 Gemini API 请求，含自适应 RPM 节流
+
+        原则：不重试 429，遇 429 立即返回，避免浪费配额。
+        模型循环由上层 _get_segmentation 的 fallback 机制处理。
         """
-        # 按 API Key 独立追踪 + RPM 节流
         tracker = track_request(api_key)
+        tracker.wait()  # RPM 节流（如需要）
 
-        for attempt in range(_MAX_RETRIES + 1):
-            tracker.wait()
+        resp = requests.post(
+            url, json=payload, timeout=self._REQUEST_TIMEOUT,
+            proxies=get_proxies_for_requests()
+        )
 
-            resp = requests.post(
-                url, json=payload, timeout=90,
-                proxies=get_proxies_for_requests()
-            )
-
-            if resp.status_code == 429:
-                tracker.record_429()
-                if attempt < _MAX_RETRIES:
-                    delay = min(_BASE_DELAY * (2 ** attempt), _MAX_DELAY)
-                    jitter = random.uniform(0, delay * 0.5)
-                    sleep_time = delay + jitter
-                    logger.warning(
-                        f"429 ({model_name}): attempt {attempt+1}/{_MAX_RETRIES}, "
-                        f"wait {sleep_time:.1f}s"
-                    )
-                    time.sleep(sleep_time)
-                continue
-
-            # 成功
+        if resp.status_code == 429:
+            tracker.record_429()
+            logger.warning("429 %s: RPM→%d/min", model_name, tracker.get_info()["rpm_current"])
+        else:
             tracker.record_success()
-            return resp
 
         return resp
 
@@ -188,7 +172,7 @@ class GeminiMaskEngine(BaseEngine):
         for model in _MODELS:
             url = f"{_API_BASE}/{model}:generateContent?key={api_key}"
             try:
-                resp = self._call_with_retry(api_key, model, url, payload)
+                resp = self._send_request(api_key, model, url, payload)
 
                 if resp.status_code == 429:
                     last_error = (
