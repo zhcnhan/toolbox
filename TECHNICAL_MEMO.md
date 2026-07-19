@@ -191,10 +191,51 @@ ssh root@server 'cd /opt/toolbox && git pull'
 | 项目 | 值 |
 |------|-----|
 | 路径 | `/opt/toolbox` |
-| 外网 | ❌ 无法访问外网（只能访问 Gitee/码云） |
+| 外网 | ❌ **无法访问外网**（只能访问 Gitee/码云） |
+| 服务器 IP | `183.66.27.19` |
+| SSH 端口 | `43521` |
+| SSH 用户 | `root` |
+| SSH 命令 | `ssh root@183.66.27.19 -p 43521` |
 | format_converter | systemd 服务，端口 8000，非 Docker |
 | batch_bg_remover | Docker Compose，端口 8001 |
 | git remote origin | Gitee（不是 GitHub） |
+
+### 4.4 代理穿透（服务器访问外网）
+
+服务器无法直连外网 API（硅基流动、remove.bg 等），需要通过本机（Windows 开发机）的代理做 SSH 反向隧道。
+
+#### 建立代理隧道（本机执行）
+
+```bash
+# 前提：本机已开启代理/VPN，端口 7897
+# 执行后需要保持 SSH 窗口不关闭
+ssh -R 7897:localhost:7897 root@183.66.27.19 -p 43521
+```
+
+**原理**：服务器访问 `localhost:7897` → SSH 隧道 → 本机 `localhost:7897`（代理）
+
+#### 在程序设置页配置
+
+隧道建立后，在抠图应用的「代理设置」中填写：
+
+```
+http://host.docker.internal:7897
+```
+
+因为 `docker-compose.yml` 已配置 `extra_hosts: host.docker.internal:host-gateway`，
+Docker 容器内的 `host.docker.internal` 会解析到服务器的 localhost。
+
+#### 网络故障排查
+
+```
+# 服务器上验证代理是否通
+curl -x http://localhost:7897 https://api.siliconflow.cn/v1/chat/completions
+
+# 检查 SSH 隧道是否还在
+ss -tlnp | grep 7897
+```
+
+> ⚠️ SSH 隧道断开后需要重新执行 `ssh -R` 命令。代理断了 → Kimi/Gemini 等云端引擎全部不可用。
 
 ### 4.4 本地开发启动
 
