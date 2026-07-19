@@ -66,8 +66,9 @@ export default function App() {
   }, []);
 
   // 保存代理配置到服务器
-  const handleProxySave = useCallback(async (enabled, url, authType = 'none', username = '', password = '') => {
-    const result = await updateProxyConfig(enabled, url, authType, username, password);
+  const handleProxySave = useCallback(async (proxyData) => {
+    const { enabled, url, auth_type = 'none', username = '', password = '' } = proxyData;
+    const result = await updateProxyConfig(enabled, url, auth_type, username, password);
     setProxyConfig(result.config);
   }, []);
 

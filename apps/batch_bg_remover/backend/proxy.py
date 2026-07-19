@@ -153,3 +153,52 @@ def apply_proxy_env() -> None:
         os.environ.pop("HTTPS_PROXY", None)
         os.environ.pop("http_proxy", None)
         os.environ.pop("https_proxy", None)
+
+
+_TEST_URLS = [
+    "https://www.google.com/generative_ai/",
+    "https://generativelanguage.googleapis.com",
+]
+
+
+def test_proxy_connectivity(proxy_url: str | None = None, timeout: int = 10) -> dict:
+    """测试代理连通性。返回测试结果。
+
+    Args:
+        proxy_url: 要测试的代理地址。为 None 时使用当前配置。
+        timeout: 每个测试请求的超时秒数。
+
+    Returns:
+        {"success": bool, "latency_ms": int, "tested_url": str, "error": str}
+    """
+    import time
+    import urllib.request
+
+    if proxy_url:
+        test_proxies = {"http": proxy_url, "https": proxy_url}
+    else:
+        test_proxies = get_proxies_for_requests()
+
+    if not test_proxies:
+        return {"success": False, "error": "代理未启用或未配置"}
+
+    for test_url in _TEST_URLS:
+        try:
+            start = time.time()
+            proxy_handler = urllib.request.ProxyHandler(test_proxies)
+            opener = urllib.request.build_opener(proxy_handler)
+            req = urllib.request.Request(test_url, method="HEAD")
+            resp = opener.open(req, timeout=timeout)
+            latency = int((time.time() - start) * 1000)
+            return {
+                "success": True,
+                "latency_ms": latency,
+                "tested_url": test_url,
+                "status_code": resp.status,
+                "error": "",
+            }
+        except Exception as e:
+            last_error = f"{type(e).__name__}: {str(e)[:100]}"
+            continue
+
+    return {"success": False, "error": f"所有测试地址均连接失败。最后错误：{last_error}"}

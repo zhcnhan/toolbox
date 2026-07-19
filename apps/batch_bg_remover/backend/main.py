@@ -36,7 +36,7 @@ auto_discover_engines()
 from rate_limiter import track_request, list_all_keys
 
 # 代理配置管理
-from proxy import get_proxy_config, set_proxy_config
+from proxy import get_proxy_config, set_proxy_config, test_proxy_connectivity
 
 # ---------------------------------------------------------------------------
 # 配置
@@ -131,6 +131,25 @@ async def update_proxy(
     if safe_config.get("password"):
         safe_config["password"] = "******"
     return {"success": True, "config": safe_config}
+
+
+@app.post("/api/proxy/test")
+async def test_proxy(
+    url: str = Form(""),
+    auth_type: str = Form("none"),
+    username: str = Form(""),
+    password: str = Form(""),
+):
+    """测试代理连通性"""
+    test_proxies = None
+    if url:
+        from proxy import _build_proxy_url
+        test_config = {"enabled": True, "url": url, "auth_type": auth_type, "username": username, "password": password}
+        proxy_url = _build_proxy_url(test_config) or url
+        test_proxies = {"http": proxy_url, "https": proxy_url}
+
+    result = test_proxy_connectivity(proxy_url=test_proxies)
+    return result
 
 
 @app.get("/api/engines")

@@ -292,9 +292,31 @@ function ProxySettings({ proxyConfig, onProxySave }) {
   const [authType, setAuthType] = useState(proxyConfig.auth_type || 'none');
   const [username, setUsername] = useState(proxyConfig.username || '');
   const [password, setPassword] = useState(proxyConfig.password || '');
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null); // {success, latency_ms, error}
 
   const handleSave = () => {
     onProxySave({ enabled, url, auth_type: authType, username, password });
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    const form = new FormData();
+    if (url) {
+      form.append('url', url);
+      form.append('auth_type', authType);
+      form.append('username', username);
+      form.append('password', password);
+    }
+    try {
+      const res = await fetch('/api/proxy/test', { method: 'POST', body: form });
+      const data = await res.json();
+      setTestResult(data);
+    } catch (e) {
+      setTestResult({ success: false, error: e.message });
+    }
+    setTesting(false);
   };
 
   return (
@@ -351,12 +373,31 @@ function ProxySettings({ proxyConfig, onProxySave }) {
           </div>
         )}
 
-        <button
-          className="btn-primary text-sm w-full"
-          onClick={handleSave}
-        >
-          保存代理配置
-        </button>
+        {/* 测试结果 */}
+        {testResult && (
+          <div className={`text-xs p-2 rounded-lg ${testResult.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+            {testResult.success
+              ? `✅ 连接成功（${testResult.latency_ms}ms）`
+              : `❌ 连接失败：${testResult.error}`
+            }
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            className="flex-1 px-3 py-2 bg-white/5 text-white/60 rounded-xl text-sm hover:bg-white/10 transition disabled:opacity-30"
+            onClick={handleTest}
+            disabled={!enabled || !url || testing}
+          >
+            {testing ? '测试中...' : '测试代理'}
+          </button>
+          <button
+            className="flex-1 btn-primary text-sm"
+            onClick={handleSave}
+          >
+            保存配置
+          </button>
+        </div>
       </div>
     </div>
   );
