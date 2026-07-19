@@ -235,10 +235,11 @@ class CustomEngine(BaseEngine):
             raise ValueError("请填写模型名称")
 
         prompt = (
-            "Remove the background from this image. "
-            "Return ONLY the subject with a completely transparent background. "
-            "The output must be a PNG image with alpha channel. "
-            "Keep the original subject quality, colors, and details unchanged."
+            "Remove the background from this image completely. "
+            "Keep ONLY the main subject with a completely transparent background. "
+            "The output must be a PNG image with alpha channel showing only the subject. "
+            "Preserve all details of the subject: edges, fine features (hair, fur), "
+            "and original colors unchanged. Do NOT crop or resize the image."
         )
 
         # 自动判断 API 风格
@@ -266,10 +267,12 @@ class CustomEngine(BaseEngine):
             raise ValueError("请填写模型名称")
 
         full_prompt = (
-            f'From this image, extract ONLY the subject described as: "{prompt}". '
-            f"Remove everything else including the background. "
-            f"The output must be a PNG image with transparent background (alpha channel). "
-            f"If the described subject is not found, return the most prominent subject instead."
+            f'From this image, extract ONLY the subject matching: "{prompt}". '
+            f"Remove everything else — background, other objects, and debris. "
+            f"The output must be a PNG image with transparent background showing only the extracted subject. "
+            f"Preserve the subject's edges and details precisely. "
+            f"Pay special attention to thin parts, fine edges, and concave areas. "
+            f"If the described subject is not found, return the most visually prominent subject instead."
         )
 
         style = self._detect_api_style(base_url, model_name)

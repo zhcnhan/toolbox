@@ -512,7 +512,7 @@ async def remove_background_with_prompt(
                 image_bytes, prompt, api_key, mask_mode=mode
             )
         elif engine_id == "kimi":
-            n_pts = num_points if num_points and 15 <= num_points <= 100 else 35
+            n_pts = num_points if num_points and 15 <= num_points <= 500 else 100
             result_bytes = await engine.remove_bg_with_prompt(
                 image_bytes, prompt, api_key, num_points=n_pts
             )

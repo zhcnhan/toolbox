@@ -102,7 +102,7 @@ export default function App() {
     }
     // Kimi 精细度
     if (engineId === 'kimi') {
-      extra.num_points = settings.kimi_num_points || 35;
+      extra.num_points = settings.kimi_num_points || 100;
     }
     return extra;
   }, [settings]);

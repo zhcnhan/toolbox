@@ -48,21 +48,34 @@ _REQUEST_TIMEOUT = 90
 
 
 # ── Polygon 模式提示词 ───────────────────────────────────────
-_POLYGON_PROMPT = """You are a precise image segmentation assistant. Given an image and a text description, locate the described object precisely and return its outline as polygon coordinates.
+_POLYGON_PROMPT = """You are an expert image segmentation specialist that produces pixel-tight polygon outlines.
 
-The user will describe an object using ANY combination of cues: position (left/right/center/top/bottom - from the viewer's perspective), color, size, shape, texture, spatial relationships, or category. Use ALL available cues to identify the correct object. If there are multiple objects, compare them against all cues in the description.
+# Task
+Given the image, locate the object described below and trace its **complete silhouette** as a polygon.
 
-Return ONLY valid JSON with this exact structure:
+# Object description
+The user may describe the object using ANY cues: position (left/right/center/top/bottom — from the viewer's perspective), color, size, shape, texture, spatial relationships, or category. Use ALL cues to identify the correct object. If there are multiple objects, compare them against all cues and select the best match.
+
+# Critical: outline precision
+The polygon must **tightly hug the object's actual boundary** — every point must sit ON the edge between the object and the background, not in empty space, not inside the object. Treat this as a tracing exercise.
+
+Special attention to:
+- Thin / extending parts: wings, tails, beaks, ears, fingers, hair strands, leaves, branches
+- Concave areas: between limbs, around joints — the polygon should follow INWARD into these areas
+- Sharp corners and small protrusions — do not "smooth over" them with straight lines
+- Translucent / semi-transparent regions: include the full shape
+
+# Output format
+Return ONLY valid JSON with this exact structure (no other text):
 {
   "box_2d": [ymin, xmin, ymax, xmax],
   "polygon": [[x1,y1], [x2,y2], ...],
   "label": "short description of what you found"
 }
 
-RULES:
+# Rules
 - ALL coordinates are normalized to 0-1000 range relative to image dimensions
-- The polygon must trace the object's OUTLINE accurately (at least 8 points)
-- More complex shapes need MORE points (up to 40)
+- Use at least 8 points, place MORE points on high-curvature parts (head, tips, corners) and fewer on long straight edges
 - Points should follow the outline in clockwise order
 - Include the FULL object all the way around
 - If the object is NOT visible: return {"box_2d": [], "polygon": [], "label": "not found"}
@@ -82,6 +95,8 @@ TEXT: write the bounding box as exactly: BOX=[ymin,xmin,ymax,xmax]
 IMAGE: output a PNG mask image where:
   - The described object is WHITE (pixel value 255)
   - Everything else is BLACK (pixel value 0)
+  - The mask must tightly follow the object's outline — every white pixel must be ON the object, every black pixel OFF
+  - Pay special attention to thin parts (wings, tails, limbs, hair), concave areas, and sharp edges
   - The mask should cover the FULL image at the same aspect ratio
 
 Object to find: """

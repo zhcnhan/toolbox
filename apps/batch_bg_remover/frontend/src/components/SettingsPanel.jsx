@@ -170,26 +170,26 @@ function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settin
         <div className="mt-3" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-1">
             <label className="text-xs text-white/50">轮廓精细度</label>
-            <span className="text-xs text-white/30">{settings.kimi_num_points || 35} 点</span>
+            <span className="text-xs text-white/30">{settings.kimi_num_points || 100} 点</span>
           </div>
           <input
             type="range"
             min="15"
-            max="100"
+            max="500"
             step="5"
             className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/10 accent-accent-blue"
-            style={{ background: `linear-gradient(to right, #3b82f6 ${((settings.kimi_num_points || 35) - 15) / 85 * 100}%, rgba(255,255,255,0.1) ${((settings.kimi_num_points || 35) - 15) / 85 * 100}%)` }}
-            value={settings.kimi_num_points || 35}
+            style={{ background: `linear-gradient(to right, #3b82f6 ${((settings.kimi_num_points || 100) - 15) / 485 * 100}%, rgba(255,255,255,0.1) ${((settings.kimi_num_points || 100) - 15) / 485 * 100}%)` }}
+            value={settings.kimi_num_points || 100}
             onChange={(e) => {
               const val = parseInt(e.target.value);
               onUpdate('kimi_num_points', val);
-              e.target.style.background = `linear-gradient(to right, #3b82f6 ${(val - 15) / 85 * 100}%, rgba(255,255,255,0.1) ${(val - 15) / 85 * 100}%)`;
+              e.target.style.background = `linear-gradient(to right, #3b82f6 ${(val - 15) / 485 * 100}%, rgba(255,255,255,0.1) ${(val - 15) / 485 * 100}%)`;
             }}
           />
           <div className="flex justify-between text-xs text-white/20 mt-0.5">
             <span>粗糙 (15)</span>
-            <span>推荐 (35)</span>
-            <span>精细 (100)</span>
+            <span>推荐 (100)</span>
+            <span>精细 (500)</span>
           </div>
         </div>
       )}
