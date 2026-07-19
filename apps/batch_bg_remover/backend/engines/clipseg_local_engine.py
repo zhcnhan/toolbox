@@ -60,8 +60,13 @@ class CLIPSegLocalEngine(BaseEngine):
 
     def _load_model(self):
         if self._model is None:
-            from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation
             import torch
+            # CLIPSegProcessor 在 transformers>=4.45 中被移除，尝试兼容导入
+            try:
+                from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation
+            except ImportError:
+                from transformers.models.clipseg.processing_clipseg import CLIPSegProcessor
+                from transformers import CLIPSegForImageSegmentation
 
             # 优先从本地路径加载（离线部署场景）
             if _ensure_model_dir(_LOCAL_MODEL_DIR):

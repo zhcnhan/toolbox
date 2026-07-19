@@ -236,15 +236,11 @@ def _download_clipseg_background():
             _CLIPSEG_DOWNLOAD_TASK["running"] = False
             return
 
-        # 带进度的下载
-        def on_progress(current, total):
-            if total > 0:
-                _CLIPSEG_DOWNLOAD_TASK["progress"] = int(current / total * 100)
-
+        # 下载模型（新版 huggingface_hub 已移除 callback 参数）
+        _CLIPSEG_DOWNLOAD_TASK["progress"] = 50
         snapshot_download(
             _CLIPSEG_MODEL_ID,
             local_files_only=False,
-            callback=on_progress,
         )
         _CLIPSEG_DOWNLOAD_TASK["progress"] = 100
     except Exception as e:
