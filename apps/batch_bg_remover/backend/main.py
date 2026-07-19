@@ -454,6 +454,7 @@ async def remove_background_with_prompt(
     base_url: Optional[str] = Form(None),
     model_name: Optional[str] = Form(None),
     sensitivity: Optional[float] = Form(None),
+    mask_mode: Optional[str] = Form("mask"),
 ):
     """
     根据文本提示词选取主体并抠图
@@ -490,6 +491,11 @@ async def remove_background_with_prompt(
         elif engine_id == "custom":
             result_bytes = await engine.remove_bg_with_prompt(
                 image_bytes, prompt, api_key, base_url=base_url or "", model_name=model_name or ""
+            )
+        elif engine_id == "gemini_mask":
+            mode = mask_mode if mask_mode in ("polygon", "mask") else "mask"
+            result_bytes = await engine.remove_bg_with_prompt(
+                image_bytes, prompt, api_key, mask_mode=mode
             )
         else:
             result_bytes = await engine.remove_bg_with_prompt(image_bytes, prompt, api_key)

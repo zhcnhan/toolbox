@@ -165,6 +165,37 @@ function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settin
       {/* Gemini 配额信息（按 API Key 独立追踪） */}
       {isGemini && isActive && <QuotaBadge apiKey={apiKey} />}
 
+      {/* Gemini Mask 模式切换 */}
+      {engine.id === 'gemini_mask' && isActive && (
+        <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+          <label className="text-xs text-white/50 block mb-1">输出模式</label>
+          <div className="flex gap-2">
+            <button
+              className={`flex-1 px-3 py-1.5 rounded-lg text-xs transition ${
+                (settings.mask_mode || 'mask') === 'mask'
+                  ? 'bg-accent-blue/20 text-accent-blue'
+                  : 'bg-white/5 text-white/40 hover:bg-white/10'
+              }`}
+              onClick={() => onUpdate('mask_mode', 'mask')}
+            >
+              掩膜 PNG
+              <span className="block text-[10px] text-white/20">更精确</span>
+            </button>
+            <button
+              className={`flex-1 px-3 py-1.5 rounded-lg text-xs transition ${
+                settings.mask_mode === 'polygon'
+                  ? 'bg-accent-blue/20 text-accent-blue'
+                  : 'bg-white/5 text-white/40 hover:bg-white/10'
+              }`}
+              onClick={() => onUpdate('mask_mode', 'polygon')}
+            >
+              多边形坐标
+              <span className="block text-[10px] text-white/20">更省 Token</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* CLIPSeg 灵敏度滑块 */}
       {engine.id === 'clipseg_local' && isActive && (
         <div className="mt-3" onClick={(e) => e.stopPropagation()}>

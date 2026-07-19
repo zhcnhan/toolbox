@@ -95,6 +95,10 @@ export default function App() {
     if (engineId === 'clipseg_local' && settings.clipseg_sensitivity !== undefined) {
       extra.sensitivity = settings.clipseg_sensitivity;
     }
+    // Gemini Mask 模式
+    if (engineId === 'gemini_mask' && settings.mask_mode) {
+      extra.mask_mode = settings.mask_mode;
+    }
     return extra;
   }, [settings]);
 

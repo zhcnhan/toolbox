@@ -1,41 +1,22 @@
 """
 engines/gemini_mask_engine.py — Gemini 智能目标定位引擎
 
-核心思路：
-  利用 Gemini 的视觉理解能力，只提取物体的「多边形轮廓坐标」，
-  在本地进行精确分割和透明化处理。
+支持两种输出模式，用户可自由切换：
 
-与传统的 Gemini 引擎区别：
-  - 传统引擎：让 Gemini 直接生成透明背景图（图生图，Token 高，分辨率受限）
-  - 本引擎：  让 Gemini 返回物体轮廓坐标 → 本地在原图上裁剪（保留原图分辨率，Token 极低）
+  polygon 模式（默认，更省 Token）
+    Gemini 返回物体轮廓坐标（JSON）→ 本地画多边形掩膜 → 抠图
+    ★ 适用于对精度要求不高、但需要省钱的场景
 
-模型（按优先级）：
-  1. gemini-3.1-flash-lite  — 优先使用，速度快，支持 JSON 结构化输出
-     （gemini-2.5-flash 已对新用户不可用，故替换为此模型）
-
-速率限制（Gemini 2.5 Flash，2026.07 参考值）：
-  https://ai.google.dev/gemini-api/docs/rate-limits
-  https://aistudio.google.com/rate-limit （查看你账号的实时配额）
-
-  ┌──────────┬──────┬──────────┬───────┐
-  │ Tier     │ RPM  │ TPM      │ RPD   │
-  ├──────────┼──────┼──────────┼───────┤
-  │ Free     │  10  │ 250,000  │   250 │  （无需绑卡）
-  │ Tier 1   │ 300  │ 2,000,000│ 1,500 │  （绑卡）
-  │ Tier 2   │2000  │ 4,000,000│10,000 │  （累计消费 >$250）
-  │ Tier 3   │ 4000+│ 8,000,000+│ 自定义│  （累计消费 >$1,000）
-  └──────────┴──────┴──────────┴───────┘
-
-  遇到 429（RESOURCE_EXHAUSTED）时采用指数退避 + 随机抖动重试。
-
-用户需要在 https://aistudio.google.com/apikey 获取 API Key。
+  mask 模式（更精确）
+    Gemini 返回黑白 PNG 掩膜图片 → 本地贴回原图 → 抠图
+    ★ 适用于需要精确边缘的场景
 """
 
 import base64
 import io
 import json
 import logging
-
+import re
 from typing import Optional
 
 import requests
@@ -49,7 +30,6 @@ from rate_limiter import track_request
 logger = logging.getLogger(__name__)
 
 # ── 模型配置 ──────────────────────────────────────────────────
-# 优先使用 gemini-2.5-flash，失败后尝试 pro 兜底
 _MODELS = [
     "gemini-3.1-flash-lite",
     "gemini-3.5-flash",
@@ -57,9 +37,11 @@ _MODELS = [
 ]
 
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+_REQUEST_TIMEOUT = 90
 
-# ── 分割提示词 ─────────────────────────────────────────────────
-_SEGMENT_PROMPT = """You are a precise image segmentation assistant.
+
+# ── Polygon 模式提示词 ───────────────────────────────────────
+_POLYGON_PROMPT = """You are a precise image segmentation assistant.
 
 Given an image and a description of an object, you MUST:
 1. Locate the described object precisely
@@ -79,6 +61,22 @@ RULES:
 - Points should follow the outline in clockwise order
 - If the object is NOT visible: return {"box_2d": [], "polygon": [], "label": "not found"}
 - Do NOT include any text outside the JSON object
+
+Object to find: """
+
+
+# ── Mask 模式提示词 ───────────────────────────────────────────
+_MASK_PROMPT = """Generate a precise segmentation mask for the described object.
+
+Return BOTH a bounding box in text and a mask image:
+
+TEXT: write the bounding box as exactly: BOX=[ymin,xmin,ymax,xmax]
+      (coordinates normalized 0-1000)
+
+IMAGE: output a PNG mask image where:
+  - The described object is WHITE (pixel value 255)
+  - Everything else is BLACK (pixel value 0)
+  - The mask should cover the FULL image at the same aspect ratio
 
 Object to find: """
 
@@ -106,162 +104,182 @@ class GeminiMaskEngine(BaseEngine):
         raise NotImplementedError("Gemini Mask 需要输入文字提示词指定要抠的目标物体")
 
     async def remove_bg_with_prompt(
-        self, image_bytes: bytes, prompt: str, api_key: Optional[str] = None
+        self, image_bytes: bytes, prompt: str,
+        api_key: Optional[str] = None, mask_mode: str = "mask"
     ) -> bytes:
         if not api_key:
             raise ValueError("Gemini API Key 未提供，请在设置中填写")
 
-        # Step 1: 调用 Gemini 获取多边形坐标
-        mask_data = self._get_segmentation(api_key, prompt, image_bytes)
+        if mask_mode == "polygon":
+            mask_data = self._get_polygon_segmentation(api_key, prompt, image_bytes)
+            if not mask_data or not mask_data.get("polygon"):
+                raise ValueError(f"Gemini 未能识别出「{prompt}」，请换个描述试试")
+            return self._apply_polygon_mask(image_bytes, mask_data)
 
-        if not mask_data or not mask_data.get("polygon") or not mask_data.get("box_2d"):
-            raise ValueError(f"Gemini 未能识别出「{prompt}」，请换个更具体的描述试试")
+        elif mask_mode == "mask":
+            mask_data = self._get_mask_segmentation(api_key, prompt, image_bytes)
+            return self._apply_image_mask(image_bytes, mask_data)
 
-        # Step 2: 本地根据坐标创建掩膜并抠图
-        return self._apply_mask(image_bytes, mask_data)
+        else:
+            raise ValueError(f"未知的 mask_mode: {mask_mode}，可选值为 polygon / mask")
 
-    # ------------------------------------------------------------------
-    # 内部方法
-    # ------------------------------------------------------------------
-
-    # ── 已知的模型调用配置 ──────────────────────────────────
-    # 不设重试：429 意味着配额已超，重试只会浪费次数
-    _REQUEST_TIMEOUT = 90
+    # ============================================================
+    #  通用请求发送
+    # ============================================================
 
     def _send_request(self, api_key: str, model_name: str, url: str, payload: dict) -> requests.Response:
-        """发送一次 Gemini API 请求，含自适应 RPM 节流
-
-        原则：不重试 429，遇 429 立即返回，避免浪费配额。
-        模型循环由上层 _get_segmentation 的 fallback 机制处理。
-        """
         tracker = track_request(api_key)
-        tracker.wait()  # RPM 节流（如需要）
-
-        resp = requests.post(
-            url, json=payload, timeout=self._REQUEST_TIMEOUT,
-            proxies=get_proxies_for_requests()
-        )
-
+        tracker.wait()
+        resp = requests.post(url, json=payload, timeout=_REQUEST_TIMEOUT, proxies=get_proxies_for_requests())
         if resp.status_code == 429:
             tracker.record_429()
             logger.warning("429 %s: RPM→%d/min", model_name, tracker.get_info()["rpm_current"])
         else:
             tracker.record_success()
-
         return resp
 
-    def _get_segmentation(self, api_key: str, prompt: str, image_bytes: bytes) -> dict:
-        """调用 Gemini API，获取物体轮廓坐标（JSON）"""
+    # ============================================================
+    #  Polygon 模式：Gemini → JSON 坐标 → 本地画 mask
+    # ============================================================
+
+    def _get_polygon_segmentation(self, api_key: str, prompt: str, image_bytes: bytes) -> dict:
         img_b64 = base64.b64encode(image_bytes).decode()
-        full_prompt = _SEGMENT_PROMPT + prompt
-
         payload = {
-            "contents": [{
-                "parts": [
-                    {"text": full_prompt},
-                    {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
-                ]
-            }],
-            "generationConfig": {
-                "temperature": 0.1,
-                "response_mime_type": "application/json",
-            }
+            "contents": [{"parts": [
+                {"text": _POLYGON_PROMPT + prompt},
+                {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
+            ]}],
+            "generationConfig": {"temperature": 0.1, "response_mime_type": "application/json"}
         }
-
         last_error = ""
         for model in _MODELS:
             url = f"{_API_BASE}/{model}:generateContent?key={api_key}"
             try:
                 resp = self._send_request(api_key, model, url, payload)
-
-                if resp.status_code == 429:
-                    last_error = (
-                        f"{model} 请求过频或每日配额已用完。"
-                        f"查看实时配额：https://aistudio.google.com/rate-limit"
-                    )
+                if resp.status_code != 200:
+                    last_error = self._friendly_error(resp.text, resp.status_code) if resp.status_code < 500 else f"{model} 服务不可用"
                     continue
-                if resp.status_code == 403:
-                    last_error = f"{model} API Key 无权限或已过期，请检查"
-                    continue
-                if resp.status_code == 404:
-                    last_error = f"{model} 模型不存在，尝试下一个"
-                    continue
-                if not resp.ok:
-                    last_error = self._friendly_error(resp.text, resp.status_code)
-                    continue
-
                 data = resp.json()
-                candidates = data.get("candidates", [])
-                if not candidates:
-                    last_error = f"{model} 未返回任何结果"
-                    continue
-
-                # 提取 JSON 文本
-                parts = candidates[0].get("content", {}).get("parts", [])
-                text = ""
-                for part in parts:
-                    if "text" in part:
-                        text += part["text"]
-
+                parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                text = "".join(p.get("text", "") for p in parts)
                 if not text:
-                    last_error = f"{model} 返回了结果但不含有效 JSON"
+                    last_error = f"{model} 未返回文字"
                     continue
-
-                # 解析 JSON
-                try:
-                    result = json.loads(text.strip())
-                    if result.get("label") == "not found" or not result.get("polygon"):
-                        last_error = f"Gemini 在图中未找到「{prompt}」"
-                        continue
-                    return result
-                except json.JSONDecodeError:
-                    last_error = f"{model} 返回了非 JSON 格式的结果"
+                result = json.loads(text.strip())
+                if result.get("label") == "not found" or not result.get("polygon"):
+                    last_error = f"Gemini 在图中未找到「{prompt}」"
                     continue
-
-            except requests.exceptions.Timeout:
-                last_error = f"{model} 请求超时（可能是图片太大或网络慢）"
+                if len(result["polygon"]) < 3:
+                    last_error = f"轮廓点太少（{len(result['polygon'])}），无法形成有效多边形"
+                    continue
+                return result
+            except json.JSONDecodeError:
+                last_error = f"{model} 返回了非 JSON 格式"
                 continue
             except Exception as e:
                 last_error = str(e)[:200]
                 continue
-
         raise RuntimeError(f"Gemini Mask 调用失败：{last_error}")
 
-    def _apply_mask(self, image_bytes: bytes, mask_data: dict) -> bytes:
-        """根据多边形坐标在原图上创建掩膜并返回透明 PNG"""
+    def _apply_polygon_mask(self, image_bytes: bytes, mask_data: dict) -> bytes:
         img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
         w, h = img.size
-
-        # 解析边界框
-        box = mask_data.get("box_2d", [])
         polygon = mask_data.get("polygon", [])
+        if len(polygon) < 3:
+            raise ValueError("轮廓点不足 3 个")
 
-        if not box or len(box) != 4:
-            raise ValueError("未获取到有效的边界框")
-        if not polygon or len(polygon) < 3:
-            raise ValueError("未获取到有效的轮廓点（至少需要 3 个点）")
-
-        # 将归一化坐标 (0-1000) 缩放到实际像素
-        def scale_x(val):
-            return max(0, min(w - 1, int(val / 1000 * w)))
-
-        def scale_y(val):
-            return max(0, min(h - 1, int(val / 1000 * h)))
-
-        scaled_polygon = [(scale_x(pt[0]), scale_y(pt[1])) for pt in polygon]
-
-        # 创建二值掩膜 (L 模式: 0=透明, 255=保留)
+        scaled = [
+            (max(0, min(w - 1, int(pt[0] / 1000 * w))),
+             max(0, min(h - 1, int(pt[1] / 1000 * h))))
+            for pt in polygon
+        ]
         mask = Image.new("L", (w, h), 0)
-        ImageDraw.Draw(mask).polygon(scaled_polygon, fill=255)
-
-        # 用掩膜作为 alpha 通道，合成透明背景图
+        ImageDraw.Draw(mask).polygon(scaled, fill=255)
         result = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         result.paste(img, (0, 0), mask)
-
-        # 输出为 PNG bytes
         buf = io.BytesIO()
         result.save(buf, format="PNG")
         return buf.getvalue()
+
+    # ============================================================
+    #  Mask 模式：Gemini → PNG 掩膜图 → 本地贴回原图
+    # ============================================================
+
+    def _get_mask_segmentation(self, api_key: str, prompt: str, image_bytes: bytes) -> dict:
+        img_b64 = base64.b64encode(image_bytes).decode()
+        payload = {
+            "contents": [{"parts": [
+                {"text": _MASK_PROMPT + prompt},
+                {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
+            ]}],
+            "generationConfig": {"temperature": 0.1, "responseModalities": ["IMAGE", "TEXT"]}
+        }
+        last_error = ""
+        for model in _MODELS:
+            url = f"{_API_BASE}/{model}:generateContent?key={api_key}"
+            try:
+                resp = self._send_request(api_key, model, url, payload)
+                if resp.status_code != 200:
+                    last_error = self._friendly_error(resp.text, resp.status_code)
+                    continue
+                data = resp.json()
+                parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+
+                # 提取文本（bounding box）
+                text = "".join(p.get("text", "") for p in parts if "text" in p)
+                # 提取图片（mask PNG）
+                mask_b64 = None
+                for p in parts:
+                    if "inlineData" in p:
+                        idata = p["inlineData"]
+                        if idata.get("mimeType", "").startswith("image/"):
+                            mask_b64 = idata["data"]
+                            break
+
+                if not mask_b64:
+                    last_error = f"{model} 未返回掩膜图片"
+                    continue
+
+                # 解析 bounding box
+                box = None
+                m = re.search(r"BOX\s*=\s*\[([\d,\s]+)\]", text, re.IGNORECASE)
+                if m:
+                    nums = [int(x.strip()) for x in m.group(1).split(",")]
+                    if len(nums) == 4:
+                        box = nums
+
+                return {
+                    "box_2d": box,
+                    "mask_b64": mask_b64,
+                }
+            except Exception as e:
+                last_error = str(e)[:200]
+                continue
+        raise RuntimeError(f"Gemini Mask 调用失败：{last_error}")
+
+    def _apply_image_mask(self, image_bytes: bytes, mask_data: dict) -> bytes:
+        """将 Gemini 返回的 PNG 掩膜贴回原图"""
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+        w, h = img.size
+
+        # 解析掩膜 PNG
+        mask_bytes = base64.b64decode(mask_data["mask_b64"])
+        mask_img = Image.open(io.BytesIO(mask_bytes)).convert("L")
+
+        # 如果掩膜尺寸和原图不同，缩放到原图尺寸
+        if mask_img.size != (w, h):
+            logger.info("Mask resize: %s → (%d,%d)", mask_img.size, w, h)
+            mask_img = mask_img.resize((w, h), Image.NEAREST)
+
+        result = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        result.paste(img, (0, 0), mask_img)
+        buf = io.BytesIO()
+        result.save(buf, format="PNG")
+        return buf.getvalue()
+
+    # ============================================================
+    #  错误提示
+    # ============================================================
 
     @staticmethod
     def _friendly_error(body: str, status: int) -> str:
@@ -274,11 +292,7 @@ class GeminiMaskEngine(BaseEngine):
         if status == 403:
             return "Gemini API 权限不足，请确认 Key 已开通或已绑定支付方式"
         if status == 429:
-            return (
-                "Gemini 请求过频或当日额度已用完。"
-                "免费层每日限制 250 次请求，可在以下链接查看实时配额："
-                "https://aistudio.google.com/rate-limit"
-            )
+            return "Gemini 请求过频或当日额度已用完。查看实时配额：https://aistudio.google.com/rate-limit"
         if status >= 500:
             return "Gemini 服务暂时不可用，请稍后重试"
         return f"Gemini 调用失败（HTTP {status}），请稍后重试"
