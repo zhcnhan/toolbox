@@ -105,7 +105,7 @@ class KimiEngine(BaseEngine):
 
         url = f"{_API_BASE}/chat/completions"
         logger.info("Kimi sending to %s | img=%d chars", _KIMI_MODEL, len(img_b64))
-        resp = requests.post(url, json=payload, headers=headers, timeout=90)
+        resp = requests.post(url, json=payload, headers=headers, timeout=180)
         logger.info("Kimi status: %s | len=%d", resp.status_code, len(resp.content))
 
         if resp.status_code == 429:
