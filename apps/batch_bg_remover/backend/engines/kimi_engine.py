@@ -87,7 +87,14 @@ class KimiEngine(BaseEngine):
 
     def _get_polygon(self, api_key: str, prompt: str, image_bytes: bytes, num_points: int) -> list:
         """调用 Kimi API，获取多边形坐标"""
-        img_b64 = base64.b64encode(image_bytes).decode()
+        print("[KIMI_DEBUG] _get_polygon entered", flush=True)
+        print("[KIMI_DEBUG] image_bytes len:", len(image_bytes), "num_points:", num_points, flush=True)
+        try:
+            img_b64 = base64.b64encode(image_bytes).decode()
+        except Exception as e:
+            print("[KIMI_DEBUG] b64encode FAILED:", e, flush=True)
+            raise
+        print("[KIMI_DEBUG] b64encode OK, len:", len(img_b64), flush=True)
         user_prompt = _POLYGON_PROMPT.format(prompt=prompt, num_points=min(max(num_points, 15), 100))
 
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
