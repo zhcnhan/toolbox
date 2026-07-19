@@ -119,6 +119,8 @@ class KimiEngine(BaseEngine):
 
                 data = resp.json()
                 content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                logger.info("=== Kimi %s raw response ===", model)
+                logger.info("content: %s", content[:300] if content else "(empty)")
                 if not content:
                     last_error = f"{model} 未返回有效内容"
                     continue
