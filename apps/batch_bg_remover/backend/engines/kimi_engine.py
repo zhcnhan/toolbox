@@ -25,8 +25,8 @@ from engine_registry import register_engine
 logger = logging.getLogger(__name__)
 
 _API_BASE = "https://api.siliconflow.cn/v1"
-_DEFAULT_MODEL = "Kimi-K2.6-Pro"
-_FALLBACK_MODEL = "Kimi-K2.7-Code"
+_DEFAULT_MODEL = "moonshotai/Kimi-K2.7-Code"
+_FALLBACK_MODEL = "Pro/moonshotai/Kimi-K2.6"
 
 _POLYGON_PROMPT = """You are a precise image segmentation assistant. Given an image and a description of an object, locate the described object precisely and return its outline as polygon coordinates.
 
@@ -109,9 +109,10 @@ class KimiEngine(BaseEngine):
             url = f"{_API_BASE}/chat/completions"
             try:
                 # 硅基流动在国内可直接访问，不走代理
-                logger.info("Kimi sending to %s (%d chars image)...", model, len(img_b64))
+                import sys
+                logger.info("Kimi sending to %s | img=%d chars | key_len=%d", model, len(img_b64), len(api_key))
                 resp = requests.post(url, json=payload, headers=headers, timeout=90)
-                logger.info("Kimi %s status: %s", model, resp.status_code)
+                logger.info("Kimi %s status: %s | len=%d", model, resp.status_code, len(resp.content))
                 if resp.status_code == 429:
                     last_error = f"{model} 免费额度已用完"
                     continue
