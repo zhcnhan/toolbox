@@ -349,3 +349,5 @@ cd cli-tools/git-mirror && python -m git_mirror sync toolbox
 | 2026-07 | 提示词通用优化：所有 polygon/mask 引擎 | `kimi_engine.py`, `gemini_mask_engine.py`, `custom_engine.py` |
 | 2026-07 | CLIPSeg 导入兼容 `transformers 5.x` | `clipseg_local_engine.py` |
 | 2026-07 | CLIPSeg 下载 `callback` 参数移除 | `main.py` |
+| 2026-07 | 提取公共掩膜处理到 `matting.py`，Gemini Mask 支持 `num_points` | `matting.py`, `gemini_mask_engine.py`, `kimi_engine.py`, `main.py` |
+| 2026-07 | macOS 部署修复：启动器改为生产模式单进程、添加国内镜像源、补充安全弹窗说明 | `make-mac-app.sh`, `batch-bg-mac.sh`, `MAC.md` |

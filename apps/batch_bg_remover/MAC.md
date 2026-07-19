@@ -37,6 +37,7 @@ bash ~/Desktop/toolbox/apps/batch_bg_remover/make-mac-app.sh
 - **打开**：双击桌面「批量抠图.command」
 - **关闭**：关掉弹出的终端窗口（不会弄坏任何东西）
 - **首次启动**会自动装依赖，等 2-3 分钟，之后秒开
+- **浏览器访问**：打开后自动弹出 `http://localhost:8001`
 
 ## 常见问题
 
@@ -45,6 +46,7 @@ bash ~/Desktop/toolbox/apps/batch_bg_remover/make-mac-app.sh
 | `command not found: git` | 没装 Git | 去 https://git-scm.com/download/mac 下载安装 |
 | `command not found: npm` | 没装 Node.js | 去 https://nodejs.org 下载 macOS 安装包 |
 | Python 弹窗要输密码 | 自动安装 Python 需要权限 | 输入 Mac 开机密码就行，只这一次 |
+| 双击「批量抠图.command」提示无法验证开发者 | macOS 安全策略拦截 | 去「系统设置 → 隐私与安全性 → 安全性」，点「仍要打开」；或按住 `⌃Control` 键再双击文件 |
 | 下载慢或失败 | 网络问题 | 如果有 VPN 就开一下，没有就多试几次 |
 | 打开后浏览器白屏 | 还没启动完 | 等终端出现 `http://localhost:8001` 就行了 |
 | CLIPSeg 抠图失败：No module named 'torch' | 默认没装 torch | 网页上会弹出安装对话框，点「开始安装」自动后台下载；或终端跑 `cd ~/Desktop/toolbox/apps/batch_bg_remover && source backend/venv/bin/activate && pip install torch -i https://pypi.tuna.tsinghua.edu.cn/simple` |
