@@ -51,7 +51,7 @@ export default function SettingsPanel({ engines, settings, onUpdate, proxyConfig
         {/* 提示词分割引擎 */}
         <div>
           <h3 className="text-sm font-semibold text-white/60 mb-3 uppercase tracking-wide">
-            ✨ 提示词分割引擎
+            ✂️ 提示词分割引擎
           </h3>
           <div className="space-y-2">
             {promptEngines.map((engine) => (
@@ -71,174 +71,59 @@ export default function SettingsPanel({ engines, settings, onUpdate, proxyConfig
         </div>
       </div>
 
-      {/* 代理设置 */}
-      <div className="mt-6 pt-5 border-t border-white/10">
-        <ProxySettings proxyConfig={proxyConfig} onProxySave={onProxySave} />
-      </div>
+      {/* 代理配置 */}
+      <ProxySettings proxyConfig={proxyConfig} onProxySave={onProxySave} />
     </div>
   );
 }
 
-function ProxySettings({ proxyConfig, onProxySave }) {
-  const [editing, setEditing] = useState(false);
-  const [url, setUrl] = useState(proxyConfig?.url || '');
-  const [enabled, setEnabled] = useState(proxyConfig?.enabled || false);
-  const [authType, setAuthType] = useState(proxyConfig?.auth_type || 'none');
-  const [username, setUsername] = useState(proxyConfig?.username || '');
-  const [password, setPassword] = useState(proxyConfig?.password || '');
-  const [saving, setSaving] = useState(false);
+// ── 配额显示组件 ──────────────────────────────────────────────
+function QuotaBadge() {
+  const [quota, setQuota] = useState(null);
 
-  // 当外部 proxyConfig 变化时同步
   useEffect(() => {
-    setUrl(proxyConfig?.url || '');
-    setEnabled(proxyConfig?.enabled || false);
-    setAuthType(proxyConfig?.auth_type || 'none');
-    setUsername(proxyConfig?.username || '');
-    setPassword(proxyConfig?.password || '');
-  }, [proxyConfig]);
+    fetch('/api/engine/gemini/quota')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setQuota(d))
+      .catch(() => setQuota(null));
+    // 每 30 秒刷新一次
+    const iv = setInterval(() => {
+      fetch('/api/engine/gemini/quota')
+        .then(r => r.ok ? r.json() : null)
+        .then(d => setQuota(d))
+        .catch(() => {});
+    }, 30000);
+    return () => clearInterval(iv);
+  }, []);
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await onProxySave(enabled, url, authType, username, password);
-      setEditing(false);
-    } catch (e) {
-      alert('保存失败: ' + e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+  if (!quota) return null;
 
-  if (!editing) {
-    return (
-      <div className="flex items-center justify-between">
-        <div>
-          <span className="text-sm font-semibold text-white/60">🔗 代理设置</span>
-          <span className="ml-2 text-xs text-white/30">
-            {proxyConfig?.enabled && proxyConfig?.url
-              ? `已启用 · ${proxyConfig.url}${proxyConfig?.auth_type === 'basic' ? ' (带认证)' : ''}`
-              : '未启用（直连）'}
-          </span>
-        </div>
-        <button
-          className="text-xs text-accent-blue hover:underline"
-          onClick={() => setEditing(true)}
-        >
-          配置 →
-        </button>
-      </div>
-    );
-  }
+  const pct = quota.rpd_limit > 0
+    ? Math.round(quota.rpd_remaining / quota.rpd_limit * 100)
+    : 0;
+
+  let color;
+  if (pct > 30) color = 'text-emerald-400';
+  else if (pct > 10) color = 'text-yellow-400';
+  else color = 'text-red-400';
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-white/60">🔗 代理设置</span>
-        <button
-          className="text-xs text-white/30 hover:text-white/60"
-          onClick={() => setEditing(false)}
-        >
-          取消
-        </button>
-      </div>
-
-      <div className="p-4 glass-light space-y-3">
-        {/* 启用开关 */}
-        <label className="flex items-center justify-between">
-          <span className="text-sm text-white/70">启用代理</span>
-          <div className="toggle" onClick={(e) => e.stopPropagation()}>
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(e) => setEnabled(e.target.checked)}
-            />
-            <span className="slider"></span>
-          </div>
-        </label>
-
-        {/* 代理地址 */}
-        <div>
-          <label className="text-xs text-white/50 block mb-1">代理地址</label>
-          <input
-            type="text"
-            className="input-field text-sm"
-            placeholder="如: http://127.0.0.1:7890"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            disabled={!enabled}
-          />
-        </div>
-
-        {/* 认证方式 */}
-        {enabled && (
-          <div>
-            <label className="text-xs text-white/50 block mb-1">认证方式</label>
-            <div className="flex gap-2">
-              {[
-                { value: 'none', label: '无认证' },
-                { value: 'basic', label: 'Basic 认证' },
-              ].map(opt => (
-                <button
-                  key={opt.value}
-                  className={`px-3 py-1.5 rounded-lg text-xs transition-all ${
-                    authType === opt.value
-                      ? 'bg-accent-blue/20 text-accent-blue border border-accent-blue/30'
-                      : 'bg-white/5 text-white/40 border border-white/10'
-                  }`}
-                  onClick={() => setAuthType(opt.value)}
-                  disabled={!enabled}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Basic 认证字段 */}
-        {enabled && authType === 'basic' && (
-          <>
-            <div>
-              <label className="text-xs text-white/50 block mb-1">用户名</label>
-              <input
-                type="text"
-                className="input-field text-sm"
-                placeholder="代理用户名"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs text-white/50 block mb-1">密码</label>
-              <input
-                type="password"
-                className="input-field text-sm"
-                placeholder="代理密码"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </>
-        )}
-
-        <p className="text-white/30 text-xs leading-relaxed">
-          针对服务器部署场景：部分云服务器可能限制访问国外 API，可通过 HTTP 代理转发流量。支持 Clash / V2Ray 等本地代理，及带 Basic 认证的企业代理。
-        </p>
-
-        <button
-          className="btn-primary text-sm w-full"
-          onClick={handleSave}
-          disabled={saving || (enabled && !url)}
-        >
-          {saving ? '保存中...' : '保存'}
-        </button>
-      </div>
+    <div className="flex items-center gap-1.5 mt-1.5">
+      <span className="text-xs text-white/30">📊</span>
+      <span className={`text-xs ${color}`}>
+        今日剩余 {quota.rpd_remaining}/{quota.rpd_limit}
+      </span>
+      {pct <= 10 && (
+        <span className="text-xs text-red-400/60">⚠️ 即将用完</span>
+      )}
     </div>
   );
 }
 
-
+// ── 引擎卡片 ──────────────────────────────────────────────────
 function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settings, onUpdate, group }) {
+  const isGemini = engine.id === 'gemini' || engine.id === 'gemini_mask';
+
   return (
     <motion.div
       whileHover={{ scale: 1.01 }}
@@ -271,6 +156,9 @@ function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settin
       </div>
 
       <p className="text-white/40 text-xs leading-relaxed">{engine.description}</p>
+
+      {/* Gemini 配额信息 */}
+      {isGemini && isActive && <QuotaBadge />}
 
       {/* CLIPSeg 灵敏度滑块 */}
       {engine.id === 'clipseg_local' && isActive && (
@@ -347,25 +235,93 @@ function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settin
                   onChange={(e) => onUpdate('custom_model_name', e.target.value)}
                 />
               </div>
-              <div className="mt-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                <p className="text-yellow-400/80 text-xs leading-relaxed font-medium">
-                  ⚠️ 重要：模型必须支持「图像分割/抠图」功能
-                </p>
-                <p className="text-yellow-400/60 text-xs leading-relaxed mt-1">
-                  文生图/图生图模型（如 FLUX、Stable Diffusion、Qwen-Image-Edit）会根据提示词<b>画新图</b>，不能用于抠图。只有能输出透明背景或分割 mask 的模型才行。
-                </p>
-              </div>
               <p className="text-white/30 text-xs leading-relaxed mt-2">
                 已支持 API 风格：<br/>
                 · <b>Gemini</b>（googleapis.com，?key= 鉴权）<br/>
                 · <b>硅基流动 SiliconFlow</b>（/images/generations，Bearer Token）<br/>
                 · <b>OpenAI 兼容</b>（/chat/completions，Bearer Token）<br/>
-                系统会根据 URL 和模型名自动判断风格。
               </p>
             </div>
           )}
         </div>
       )}
     </motion.div>
+  );
+}
+
+// ── 代理配置组件 ──────────────────────────────────────────────
+function ProxySettings({ proxyConfig, onProxySave }) {
+  const [enabled, setEnabled] = useState(proxyConfig.enabled || false);
+  const [url, setUrl] = useState(proxyConfig.url || '');
+  const [authType, setAuthType] = useState(proxyConfig.auth_type || 'none');
+  const [username, setUsername] = useState(proxyConfig.username || '');
+  const [password, setPassword] = useState(proxyConfig.password || '');
+
+  const handleSave = () => {
+    onProxySave({ enabled, url, auth_type: authType, username, password });
+  };
+
+  return (
+    <div className="mt-6 p-4 glass-light">
+      <h3 className="text-sm font-semibold text-white/60 mb-3 uppercase tracking-wide">
+        🌐 代理配置
+      </h3>
+      <div className="space-y-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+            className="accent-accent-blue"
+          />
+          <span className={enabled ? 'text-white' : 'text-white/30'}>启用代理</span>
+        </label>
+
+        <input
+          type="text"
+          className="input-field text-sm"
+          placeholder="http://127.0.0.1:7890"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          disabled={!enabled}
+        />
+
+        <select
+          className="input-field text-sm"
+          value={authType}
+          onChange={(e) => setAuthType(e.target.value)}
+          disabled={!enabled}
+        >
+          <option value="none">无认证</option>
+          <option value="basic">Basic 认证</option>
+        </select>
+
+        {authType === 'basic' && (
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="text"
+              className="input-field text-sm"
+              placeholder="用户名"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+            <input
+              type="password"
+              className="input-field text-sm"
+              placeholder="密码"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+        )}
+
+        <button
+          className="btn-primary text-sm w-full"
+          onClick={handleSave}
+        >
+          保存代理配置
+        </button>
+      </div>
+    </div>
   );
 }

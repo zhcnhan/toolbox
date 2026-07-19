@@ -44,6 +44,7 @@ from PIL import Image, ImageDraw
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
 from proxy import get_proxies_for_requests
+from rate_limiter import gemini_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +134,9 @@ class GeminiMaskEngine(BaseEngine):
         官方文档推荐策略：
         https://ai.google.dev/gemini-api/docs/rate-limits#handling-rate-limits
         """
+        # RPM 节流 + RPD 计数
+        gemini_limiter.wait_and_count()
+
         for attempt in range(_MAX_RETRIES + 1):
             resp = requests.post(
                 url, json=payload, timeout=90,
@@ -157,6 +161,14 @@ class GeminiMaskEngine(BaseEngine):
 
     def _get_segmentation(self, api_key: str, prompt: str, image_bytes: bytes) -> dict:
         """调用 Gemini API，获取物体轮廓坐标（JSON）"""
+        # 先检查配额，不够就直接拒绝
+        quota = gemini_limiter.get_quota()
+        if quota["rpd_remaining"] <= 0:
+            raise RuntimeError(
+                f"Gemini 今日配额已用完（{quota['rpd_limit']} 次/日）。"
+                f"绑卡升级可提升至 1,500 次/日。实时配额：https://aistudio.google.com/rate-limit"
+            )
+
         img_b64 = base64.b64encode(image_bytes).decode()
         full_prompt = _SEGMENT_PROMPT + prompt
 

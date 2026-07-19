@@ -22,6 +22,7 @@ import requests
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
 from proxy import get_proxies_for_requests
+from rate_limiter import gemini_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,10 @@ class GeminiEngine(BaseEngine):
         )
 
     def _call_with_retry(self, url: str, payload: dict) -> requests.Response:
-        """带指数退避 + 随机抖动重试的 HTTP 请求"""
+        """带指数退避 + 随机抖动 + RPM 节流的 HTTP 请求"""
+        # RPM 节流 + RPD 计数
+        gemini_limiter.wait_and_count()
+
         for attempt in range(_MAX_RETRIES + 1):
             resp = requests.post(
                 url, json=payload, timeout=90,
@@ -80,6 +84,14 @@ class GeminiEngine(BaseEngine):
 
     def _call_gemini(self, api_key: str, prompt: str, image_bytes: bytes) -> bytes:
         """调用 Gemini API，尝试多个图像生成模型，返回图片 bytes"""
+        # 先检查配额
+        quota = gemini_limiter.get_quota()
+        if quota["rpd_remaining"] <= 0:
+            raise RuntimeError(
+                f"Gemini 今日配额已用完（{quota['rpd_limit']} 次/日）。"
+                f"绑卡升级可提升至 1,500 次/日。实时配额：https://aistudio.google.com/rate-limit"
+            )
+
         img_b64 = base64.b64encode(image_bytes).decode()
 
         payload = {

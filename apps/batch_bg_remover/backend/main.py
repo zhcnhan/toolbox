@@ -32,6 +32,9 @@ from pydantic import BaseModel
 from engine_registry import auto_discover_engines, get_engine, list_engines
 auto_discover_engines()
 
+# Gemini 速率限制查询
+from rate_limiter import gemini_limiter
+
 # 代理配置管理
 from proxy import get_proxy_config, set_proxy_config
 
@@ -153,6 +156,13 @@ async def get_engines():
     }
 
 
+@app.get("/api/engine/gemini/quota")
+async def gemini_quota():
+    """查询 Gemini API 配额状态（RPM / RPD）"""
+    return gemini_limiter.get_quota()
+
+
+# ============================================================
 _CLIPSEG_MODEL_ID = "CIDAS/clipseg-rd64-refined"
 _CLIPSEG_DOWNLOAD_TASK: dict = {"running": False, "progress": 0, "error": ""}
 
