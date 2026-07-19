@@ -100,6 +100,10 @@ export default function App() {
     if (engineId === 'gemini_mask') {
       extra.mask_mode = settings.mask_mode || 'polygon';
     }
+    // Kimi 精细度
+    if (engineId === 'kimi') {
+      extra.num_points = settings.kimi_num_points || 35;
+    }
     return extra;
   }, [settings]);
 

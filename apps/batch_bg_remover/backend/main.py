@@ -468,6 +468,7 @@ async def remove_background_with_prompt(
     model_name: Optional[str] = Form(None),
     sensitivity: Optional[float] = Form(None),
     mask_mode: Optional[str] = Form("polygon"),
+    num_points: Optional[int] = Form(35),
 ):
     """
     根据文本提示词选取主体并抠图
@@ -509,6 +510,11 @@ async def remove_background_with_prompt(
             mode = mask_mode if mask_mode in ("polygon", "mask") else "mask"
             result_bytes = await engine.remove_bg_with_prompt(
                 image_bytes, prompt, api_key, mask_mode=mode
+            )
+        elif engine_id == "kimi":
+            n_pts = num_points if num_points and 15 <= num_points <= 100 else 35
+            result_bytes = await engine.remove_bg_with_prompt(
+                image_bytes, prompt, api_key, num_points=n_pts
             )
         else:
             result_bytes = await engine.remove_bg_with_prompt(image_bytes, prompt, api_key)
