@@ -25,8 +25,8 @@ from engine_registry import register_engine
 logger = logging.getLogger(__name__)
 
 _API_BASE = "https://api.siliconflow.cn/v1"
-_DEFAULT_MODEL = "moonshotai/Kimi-K2.7-Code"
-_FALLBACK_MODEL = "Pro/moonshotai/Kimi-K2.6"
+_DEFAULT_MODEL = "Pro/moonshotai/Kimi-K2.6"
+_FALLBACK_MODEL = "moonshotai/Kimi-K2.7-Code"
 
 _POLYGON_PROMPT = """You are a precise image segmentation assistant. Given an image and a description of an object, locate the described object precisely and return its outline as polygon coordinates.
 
