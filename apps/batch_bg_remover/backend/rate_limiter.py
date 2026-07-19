@@ -99,5 +99,7 @@ class RateLimiter:
             self._daily_count = 0
 
 
-# 全局单例（所有 Gemini 引擎共用，因为共用同一个 API Key 的配额）
-gemini_limiter = RateLimiter(rpm=10, rpd=250)
+# 全局单例（所有 Gemini 引擎共用）
+# 速率限制值参考 aistudio.google.com/rate-limit 的实时数据
+# 默认保守值（Free Tier 实际因账号而异，用户可在设置页查看实时配额）
+gemini_limiter = RateLimiter(rpm=5, rpd=20)

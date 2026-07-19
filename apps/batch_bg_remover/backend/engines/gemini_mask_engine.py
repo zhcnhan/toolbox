@@ -10,7 +10,8 @@ engines/gemini_mask_engine.py — Gemini 智能目标定位引擎
   - 本引擎：  让 Gemini 返回物体轮廓坐标 → 本地在原图上裁剪（保留原图分辨率，Token 极低）
 
 模型（按优先级）：
-  1. gemini-2.5-flash  — 优先使用，速度快，成本低，支持 JSON 结构化输出
+  1. gemini-3.1-flash-lite  — 优先使用，速度快，支持 JSON 结构化输出
+     （gemini-2.5-flash 已对新用户不可用，故替换为此模型）
 
 速率限制（Gemini 2.5 Flash，2026.07 参考值）：
   https://ai.google.dev/gemini-api/docs/rate-limits
@@ -51,8 +52,9 @@ logger = logging.getLogger(__name__)
 # ── 模型配置 ──────────────────────────────────────────────────
 # 优先使用 gemini-2.5-flash，失败后尝试 pro 兜底
 _MODELS = [
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-3-flash-preview",
 ]
 
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"

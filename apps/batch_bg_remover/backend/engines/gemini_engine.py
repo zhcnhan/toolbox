@@ -3,7 +3,8 @@ engines/gemini_engine.py — Google Gemini 云端引擎
 
 使用 Gemini API 进行抠图和文本提示词分割。
 模型（按优先级）：
-  1. gemini-2.5-flash  — 优先使用，速度快，成本低
+  1. gemini-3.1-flash-lite  — 优先使用，速度快，成本低
+     （gemini-2.5-flash 已对新用户不可用，故替换为此模型）
 
 速率限制：
   https://ai.dev/gemini-api/docs/rate-limits
@@ -28,8 +29,9 @@ logger = logging.getLogger(__name__)
 
 # 模型优先级
 _IMAGE_MODELS = [
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-3-flash-preview",
 ]
 
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
