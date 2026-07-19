@@ -48,11 +48,9 @@ _REQUEST_TIMEOUT = 90
 
 
 # ── Polygon 模式提示词 ───────────────────────────────────────
-_POLYGON_PROMPT = """You are a precise image segmentation assistant.
+_POLYGON_PROMPT = """You are a precise image segmentation assistant. Given an image and a text description, locate the described object precisely and return its outline as polygon coordinates. 
 
-Given an image and a description of an object, you MUST:
-1. Locate the described object precisely
-2. Return its outline as polygon coordinates
+Directions (left/right/up/down) are from the VIEWER'S perspective, meaning the left side of the image as it appears to someone looking at it.
 
 Return ONLY valid JSON with this exact structure:
 {

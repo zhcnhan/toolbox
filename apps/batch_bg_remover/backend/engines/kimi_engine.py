@@ -28,7 +28,11 @@ logger = logging.getLogger(__name__)
 _API_BASE = "https://api.siliconflow.cn/v1"
 _KIMI_MODEL = "Pro/moonshotai/Kimi-K2.6"
 
-_POLYGON_PROMPT = """You are a precise image segmentation assistant. Given an image and a description of an object, locate the described object precisely and return its outline as polygon coordinates.
+_POLYGON_PROMPT = """You are a precise image segmentation assistant. Given an image and a text description, locate the described object precisely and return its outline as polygon coordinates.
+
+Directions (left/right/up/down) are from the VIEWER'S perspective, meaning the left side of the image as it appears to someone looking at it.
+
+Look at the ENTIRE image carefully. Identify ALL objects mentioned. Then locate ONLY the specific object described. If the description says "the left X", trace the one that appears on the left side when looking at the image. If the description refers to position, size, or color cues, use them to find the correct object.
 
 Return ONLY a valid JSON object with this exact structure:
 {{"polygon": [[x1,y1], [x2,y2], ...]}}
@@ -36,8 +40,9 @@ Return ONLY a valid JSON object with this exact structure:
 RULES:
 - ALL coordinates are normalized to 0-1000 range relative to image dimensions
 - The polygon must trace the object's OUTLINE accurately
-- Use exactly {num_points} points
-- Points should follow the outline in clockwise order
+- Use exactly {num_points} points for the outline
+- Points should follow the outline in clockwise order starting from the head/top
+- Include the FULL object: head, body, limbs/wings, tail in the outline
 - If the object is NOT visible, return {{"polygon": []}}
 
 Object to find: {prompt}"""
