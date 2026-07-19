@@ -26,6 +26,8 @@ proxy.py — 全局代理配置管理
 
 import json
 import os
+import time
+import urllib.error
 from pathlib import Path
 
 # 配置文件路径：同目录下 data/proxy.json
@@ -156,8 +158,10 @@ def apply_proxy_env() -> None:
 
 
 _TEST_URLS = [
-    "https://www.google.com/generative_ai/",
-    "https://generativelanguage.googleapis.com",
+    "https://www.google.com",
+    "https://www.baidu.com",
+    "https://github.com",
+    "https://www.bing.com",
 ]
 
 
@@ -196,6 +200,16 @@ def test_proxy_connectivity(proxy_url: str | None = None, timeout: int = 10) -> 
                 "tested_url": test_url,
                 "status_code": resp.status,
                 "error": "",
+            }
+        except urllib.error.HTTPError as e:
+            # HTTP 错误也说明连接成功了（代理正常），只是目标 URL 返回了非 200
+            latency = int((time.time() - start) * 1000)
+            return {
+                "success": True,
+                "latency_ms": latency,
+                "tested_url": test_url,
+                "status_code": e.code,
+                "error": f"HTTP {e.code}（连接正常，目标 URL 返回非 200）",
             }
         except Exception as e:
             last_error = f"{type(e).__name__}: {str(e)[:100]}"
