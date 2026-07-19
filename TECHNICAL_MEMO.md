@@ -206,20 +206,33 @@ ssh root@server 'cd /opt/toolbox && git pull'
 
 #### 建立代理隧道（本机执行）
 
+前提：本机已开启 Clash/代理客户端。
+
+**Clash 端口分配（本机）：**
+
+| 用途 | 端口 |
+|------|------|
+| HTTP 代理 | `7899` |
+| 混合端口 | `7897` |
+| SOCKS5 | （其他） |
+
+SSH 反向隧道**只能用 HTTP 端口**（不是混合端口）：
+
 ```bash
-# 前提：本机已开启代理/VPN，端口 7897
-# 执行后需要保持 SSH 窗口不关闭
-ssh -R 7897:localhost:7897 root@183.66.27.19 -p 43521
+# 隧道用 HTTP 端口 7899
+ssh -R 7899:localhost:7899 root@183.66.27.19 -p 43521
 ```
 
-**原理**：服务器访问 `localhost:7897` → SSH 隧道 → 本机 `localhost:7897`（代理）
+执行后需要保持 SSH 窗口不关闭。
+
+**原理**：服务器访问 `localhost:7899` → SSH 隧道 → 本机 `localhost:7899`（Clash HTTP 代理）
 
 #### 在程序设置页配置
 
 隧道建立后，在抠图应用的「代理设置」中填写：
 
 ```
-http://host.docker.internal:7897
+http://host.docker.internal:7899
 ```
 
 因为 `docker-compose.yml` 已配置 `extra_hosts: host.docker.internal:host-gateway`，
