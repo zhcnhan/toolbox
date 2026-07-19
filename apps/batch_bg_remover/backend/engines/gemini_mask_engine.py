@@ -48,9 +48,9 @@ _REQUEST_TIMEOUT = 90
 
 
 # ── Polygon 模式提示词 ───────────────────────────────────────
-_POLYGON_PROMPT = """You are a precise image segmentation assistant. Given an image and a text description, locate the described object precisely and return its outline as polygon coordinates. 
+_POLYGON_PROMPT = """You are a precise image segmentation assistant. Given an image and a text description, locate the described object precisely and return its outline as polygon coordinates.
 
-Directions (left/right/up/down) are from the VIEWER'S perspective, meaning the left side of the image as it appears to someone looking at it.
+The user will describe an object using ANY combination of cues: position (left/right/center/top/bottom - from the viewer's perspective), color, size, shape, texture, spatial relationships, or category. Use ALL available cues to identify the correct object. If there are multiple objects, compare them against all cues in the description.
 
 Return ONLY valid JSON with this exact structure:
 {
@@ -64,6 +64,7 @@ RULES:
 - The polygon must trace the object's OUTLINE accurately (at least 8 points)
 - More complex shapes need MORE points (up to 40)
 - Points should follow the outline in clockwise order
+- Include the FULL object all the way around
 - If the object is NOT visible: return {"box_2d": [], "polygon": [], "label": "not found"}
 - Do NOT include any text outside the JSON object
 

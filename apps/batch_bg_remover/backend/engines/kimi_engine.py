@@ -30,9 +30,9 @@ _KIMI_MODEL = "Pro/moonshotai/Kimi-K2.6"
 
 _POLYGON_PROMPT = """You are a precise image segmentation assistant. Given an image and a text description, locate the described object precisely and return its outline as polygon coordinates.
 
-Directions (left/right/up/down) are from the VIEWER'S perspective, meaning the left side of the image as it appears to someone looking at it.
+The user will describe an object using ANY combination of cues: position (left/right/center/top/bottom - from the viewer's perspective), color, size, shape, texture, spatial relationships ("next to", "behind", "on top of"), or category ("the person", "the car", "the bird"). Use ALL available cues to identify the correct object.
 
-Look at the ENTIRE image carefully. Identify ALL objects mentioned. Then locate ONLY the specific object described. If the description says "the left X", trace the one that appears on the left side when looking at the image. If the description refers to position, size, or color cues, use them to find the correct object.
+Look at the ENTIRE image carefully. If there are multiple objects, compare them against the description and select the one that matches ALL cues. If the description refers to relative position like "left" or "right", use the viewer's perspective (your perspective looking at the image).
 
 Return ONLY a valid JSON object with this exact structure:
 {{"polygon": [[x1,y1], [x2,y2], ...]}}
@@ -42,7 +42,7 @@ RULES:
 - The polygon must trace the object's OUTLINE accurately
 - Use exactly {num_points} points for the outline
 - Points should follow the outline in clockwise order starting from the head/top
-- Include the FULL object: head, body, limbs/wings, tail in the outline
+- Include the FULL object all the way around
 - If the object is NOT visible, return {{"polygon": []}}
 
 Object to find: {prompt}"""
