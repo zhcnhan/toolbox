@@ -467,7 +467,7 @@ async def remove_background_with_prompt(
     base_url: Optional[str] = Form(None),
     model_name: Optional[str] = Form(None),
     sensitivity: Optional[float] = Form(None),
-    mask_mode: Optional[str] = Form("mask"),
+    mask_mode: Optional[str] = Form("polygon"),
 ):
     """
     根据文本提示词选取主体并抠图

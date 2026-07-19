@@ -172,25 +172,25 @@ function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settin
           <div className="flex gap-2">
             <button
               className={`flex-1 px-3 py-1.5 rounded-lg text-xs transition ${
-                (settings.mask_mode || 'mask') === 'mask'
+                (settings.mask_mode || 'polygon') === 'mask'
                   ? 'bg-accent-blue/20 text-accent-blue'
                   : 'bg-white/5 text-white/40 hover:bg-white/10'
               }`}
               onClick={() => onUpdate('mask_mode', 'mask')}
             >
               掩膜 PNG
-              <span className="block text-[10px] text-white/20">更精确</span>
+              <span className="block text-[10px] text-white/20">需绑卡</span>
             </button>
             <button
               className={`flex-1 px-3 py-1.5 rounded-lg text-xs transition ${
-                settings.mask_mode === 'polygon'
+                (settings.mask_mode || 'polygon') === 'polygon'
                   ? 'bg-accent-blue/20 text-accent-blue'
                   : 'bg-white/5 text-white/40 hover:bg-white/10'
               }`}
               onClick={() => onUpdate('mask_mode', 'polygon')}
             >
               多边形坐标
-              <span className="block text-[10px] text-white/20">更省 Token</span>
+              <span className="block text-[10px] text-white/20">推荐（当前可用）</span>
             </button>
           </div>
         </div>

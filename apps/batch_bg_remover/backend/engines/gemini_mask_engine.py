@@ -105,7 +105,7 @@ class GeminiMaskEngine(BaseEngine):
 
     async def remove_bg_with_prompt(
         self, image_bytes: bytes, prompt: str,
-        api_key: Optional[str] = None, mask_mode: str = "mask"
+        api_key: Optional[str] = None, mask_mode: str = "polygon"
     ) -> bytes:
         if not api_key:
             raise ValueError("Gemini API Key 未提供，请在设置中填写")
@@ -255,7 +255,11 @@ class GeminiMaskEngine(BaseEngine):
             except Exception as e:
                 last_error = str(e)[:200]
                 continue
-        raise RuntimeError(f"Gemini Mask 调用失败：{last_error}")
+        raise RuntimeError(
+            f"掩膜模式调用失败：{last_error}。\n"
+            "建议切换到「多边形坐标」模式（当前免费 Key 的图片模型配额有限，"
+            "绑卡后可启用掩膜模式）。请在设置页切换输出模式。"
+        )
 
     def _apply_image_mask(self, image_bytes: bytes, mask_data: dict) -> bytes:
         """将 Gemini 返回的 PNG 掩膜贴回原图"""
