@@ -21,7 +21,6 @@ from PIL import Image, ImageDraw
 
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
-from proxy import get_proxies_for_requests
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +108,8 @@ class KimiEngine(BaseEngine):
             payload["model"] = model
             url = f"{_API_BASE}/chat/completions"
             try:
-                resp = requests.post(url, json=payload, headers=headers, timeout=90, proxies=get_proxies_for_requests())
+                # 硅基流动在国内可直接访问，不走代理
+                resp = requests.post(url, json=payload, headers=headers, timeout=90)
                 if resp.status_code == 429:
                     last_error = f"{model} 免费额度已用完"
                     continue
