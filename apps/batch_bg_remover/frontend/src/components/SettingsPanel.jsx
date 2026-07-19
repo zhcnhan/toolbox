@@ -78,44 +78,49 @@ export default function SettingsPanel({ engines, settings, onUpdate, proxyConfig
 }
 
 // ── 配额显示组件 ──────────────────────────────────────────────
-function QuotaBadge({ model }) {
+function QuotaBadge({ apiKey }) {
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    const fetchQuota = () => {
-      fetch(`/api/engine/gemini/quota?model=${encodeURIComponent(model)}`)
+    if (!apiKey) return;
+    const fetchUsage = () => {
+      fetch(`/api/engine/gemini/usage?api_key=${encodeURIComponent(apiKey)}`)
         .then(r => r.ok ? r.json() : null)
-        .then(d => setData(d))
+        .then(d => setData(d?.usage || null))
         .catch(() => {});
     };
-    fetchQuota();
-    const iv = setInterval(fetchQuota, 30000);
+    fetchUsage();
+    const iv = setInterval(fetchUsage, 30000);
     return () => clearInterval(iv);
-  }, [model]);
+  }, [apiKey]);
 
-  if (!data) return null;
+  if (!data || !apiKey) return null;
 
-  const usage = data.usage;
-  const limits = data.limits;
-  const pct = usage.rpd_limit > 0
-    ? Math.round(usage.rpd_remaining / usage.rpd_limit * 100)
-    : 0;
+  const { rpd_used, rpm_current, rpm_range } = data;
+  const rpm_max = rpm_range ? rpm_range[1] : '?';
 
-  let color;
-  if (pct > 30) color = 'text-emerald-400';
-  else if (pct > 10) color = 'text-yellow-400';
-  else color = 'text-red-400';
+  // 根据使用量着色：少=绿，多=黄，很多=红
+  let color = 'text-emerald-400';
+  if (rpd_used > 100) color = 'text-yellow-400';
+  if (rpd_used > 300) color = 'text-red-400';
 
   return (
     <div className="flex items-center gap-1.5 mt-1.5">
       <span className="text-xs text-white/30">📊</span>
       <span className={`text-xs ${color}`}>
-        {usage.rpd_used}/{usage.rpd_limit} 次/日
+        今日已使用 {rpd_used} 次
       </span>
-      <span className="text-xs text-white/20">| {limits.rpm} RPM</span>
-      {usage.rpd_exhausted && (
-        <span className="text-xs text-red-400">⚠️ 已用完</span>
-      )}
+      <span className="text-xs text-white/20">
+        | {rpm_current}/{rpm_max} RPM
+      </span>
+      <a
+        href="https://aistudio.google.com/rate-limit"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs text-accent-blue/60 hover:text-accent-blue"
+      >
+        查看配额 →
+      </a>
     </div>
   );
 }
@@ -157,8 +162,8 @@ function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settin
 
       <p className="text-white/40 text-xs leading-relaxed">{engine.description}</p>
 
-      {/* Gemini 配额信息（按模型独立显示） */}
-      {isGemini && isActive && <QuotaBadge model="gemini-3.1-flash-lite" />}
+      {/* Gemini 配额信息（按 API Key 独立追踪） */}
+      {isGemini && isActive && <QuotaBadge apiKey={apiKey} />}
 
       {/* CLIPSeg 灵敏度滑块 */}
       {engine.id === 'clipseg_local' && isActive && (

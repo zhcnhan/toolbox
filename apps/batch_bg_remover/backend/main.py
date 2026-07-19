@@ -32,8 +32,8 @@ from pydantic import BaseModel
 from engine_registry import auto_discover_engines, get_engine, list_engines
 auto_discover_engines()
 
-# Gemini 速率限制查询（按模型独立追踪）
-from rate_limiter import get_limiter, get_model_info, list_all_quotas
+# Gemini 速率限制查询（按 API Key 追踪）
+from rate_limiter import track_request, list_all_keys
 
 # 代理配置管理
 from proxy import get_proxy_config, set_proxy_config
@@ -156,25 +156,19 @@ async def get_engines():
     }
 
 
-@app.get("/api/engine/gemini/quota")
-async def gemini_quota(model: str = "gemini-3.1-flash-lite"):
-    """查询指定 Gemini 模型的配额状态（RPM / RPD）
-
-    不同模型的速率限制可能不同。
-    查看实时配额：https://aistudio.google.com/rate-limit
-    """
-    limiter = get_limiter(model)
-    return {
-        "model": model,
-        "limits": get_model_info(model),
-        "usage": limiter.get_quota(),
-    }
+@app.get("/api/engine/gemini/usage")
+async def gemini_usage(api_key: str = ""):
+    """查询某 API Key 的今日用量"""
+    if not api_key:
+        return {"keys": list_all_keys()}
+    tracker = track_request(api_key)
+    return {"usage": tracker.get_info()}
 
 
-@app.get("/api/engine/gemini/all-quotas")
-async def gemini_all_quotas():
-    """查询所有已使用的 Gemini 模型配额"""
-    return {"models": list_all_quotas()}
+@app.get("/api/engine/gemini/all-keys")
+async def gemini_all_keys():
+    """列出所有已知 Key 的用量"""
+    return {"keys": list_all_keys()}
 
 
 # ============================================================
