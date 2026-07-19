@@ -25,8 +25,7 @@ from engine_registry import register_engine
 logger = logging.getLogger(__name__)
 
 _API_BASE = "https://api.siliconflow.cn/v1"
-_DEFAULT_MODEL = "Pro/moonshotai/Kimi-K2.6"
-_FALLBACK_MODEL = "moonshotai/Kimi-K2.7-Code"
+_KIMI_MODEL = "Pro/moonshotai/Kimi-K2.6"
 
 _POLYGON_PROMPT = """You are a precise image segmentation assistant. Given an image and a description of an object, locate the described object precisely and return its outline as polygon coordinates.
 
@@ -91,7 +90,7 @@ class KimiEngine(BaseEngine):
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
         payload = {
-            "model": _DEFAULT_MODEL,
+            "model": _KIMI_MODEL,
             "messages": [{
                 "role": "user",
                 "content": [
@@ -103,62 +102,46 @@ class KimiEngine(BaseEngine):
             "max_tokens": 4096,
         }
 
-        last_error = ""
-        for model in [_DEFAULT_MODEL, _FALLBACK_MODEL]:
-            payload["model"] = model
-            url = f"{_API_BASE}/chat/completions"
-            try:
-                # 硅基流动在国内可直接访问，不走代理
-                import sys
-                logger.info("Kimi sending to %s | img=%d chars | key_len=%d", model, len(img_b64), len(api_key))
-                resp = requests.post(url, json=payload, headers=headers, timeout=90)
-                logger.info("Kimi %s status: %s | len=%d", model, resp.status_code, len(resp.content))
-                if resp.status_code == 429:
-                    last_error = f"{model} 免费额度已用完"
-                    continue
-                if not resp.ok:
-                    last_error = f"{model} HTTP {resp.status_code}: {resp.text[:200]}"
-                    logger.warning("Kimi %s error body: %s", model, resp.text[:300])
-                    continue
+        url = f"{_API_BASE}/chat/completions"
+        logger.info("Kimi sending to %s | img=%d chars", _KIMI_MODEL, len(img_b64))
+        resp = requests.post(url, json=payload, headers=headers, timeout=90)
+        logger.info("Kimi status: %s | len=%d", resp.status_code, len(resp.content))
 
-                data = resp.json()
-                logger.info("Kimi %s choices: %d", model, len(data.get("choices", [])))
-                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                logger.info("Kimi %s response: %s", model, content[:400] if content else "(empty)")
-                if not content:
-                    last_error = f"{model} 未返回有效内容"
-                    continue
+        if resp.status_code == 429:
+            raise RuntimeError("Kimi 免费额度已用完")
+        if not resp.ok:
+            raise RuntimeError(f"Kimi HTTP {resp.status_code}: {resp.text[:200]}")
 
-                # 提取 JSON（Kimi 可能输出 markdown 包裹或其他文字）
-                content = content.strip()
-                if "```" in content:
-                    for block in content.split("```"):
-                        block = block.strip()
-                        if block.startswith("json"):
-                            block = block[4:].strip()
-                        if block.startswith("{"):
-                            content = block
-                            break
+        data = resp.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        logger.info("Kimi response: %s", content[:400] if content else "(empty)")
+        if not content:
+            raise RuntimeError("Kimi 未返回有效内容")
 
-                # 找第一个 { 到最后一个 } 之间的内容
-                start = content.find("{")
-                end = content.rfind("}")
-                if start >= 0 and end > start:
-                    content = content[start:end+1]
-                else:
-                    raise ValueError("未找到 JSON")
+        # 提取 JSON（Kimi 可能输出 markdown 包裹或其他文字）
+        content = content.strip()
+        if "```" in content:
+            for block in content.split("```"):
+                block = block.strip()
+                if block.startswith("json"):
+                    block = block[4:].strip()
+                if block.startswith("{"):
+                    content = block
+                    break
 
-                result = json.loads(content)
-                polygon = result.get("polygon") or result.get("points") or result.get("coordinates") or result.get("polygons") or []
-                if isinstance(polygon, list) and len(polygon) >= 3:
-                    return polygon
-                last_error = f"{model} 未识别出目标物体"
+        start = content.find("{")
+        end = content.rfind("}")
+        if start >= 0 and end > start:
+            content = content[start:end+1]
+        else:
+            raise RuntimeError("Kimi 未返回有效 JSON")
 
-            except Exception as e:
-                last_error = f"{model}: {str(e)[:150]}"
-                continue
+        result = json.loads(content)
+        polygon = result.get("polygon") or result.get("points") or result.get("coordinates") or []
+        if isinstance(polygon, list) and len(polygon) >= 3:
+            return polygon
 
-        raise RuntimeError(f"Kimi 调用失败：{last_error}")
+        raise RuntimeError("Kimi 未能识别出目标物体")
 
     # ============================================================
     #  本地掩膜处理
