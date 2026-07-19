@@ -20,10 +20,11 @@ import re
 from typing import Optional
 
 import requests
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from engine_base import BaseEngine, EngineInfo
 from engine_registry import register_engine
+from matting import matting_cut
 from proxy import get_proxies_for_requests
 from rate_limiter import track_request
 
@@ -60,10 +61,10 @@ The user may describe the object using ANY cues: position (left/right/center/top
 The polygon must **tightly hug the object's actual boundary** — every point must sit ON the edge between the object and the background, not in empty space, not inside the object. Treat this as a tracing exercise.
 
 Special attention to:
-- Thin / extending parts: wings, tails, beaks, ears, fingers, hair strands, leaves, branches
-- Concave areas: between limbs, around joints — the polygon should follow INWARD into these areas
+- Thin / extending parts — these are the most important and the easiest to miss
+- Concave areas — the polygon should follow INWARD into these areas
 - Sharp corners and small protrusions — do not "smooth over" them with straight lines
-- Translucent / semi-transparent regions: include the full shape
+- Translucent / semi-transparent regions — include the full shape
 
 # Output format
 Return ONLY valid JSON with this exact structure (no other text):
@@ -126,7 +127,8 @@ class GeminiMaskEngine(BaseEngine):
 
     async def remove_bg_with_prompt(
         self, image_bytes: bytes, prompt: str,
-        api_key: Optional[str] = None, mask_mode: str = "polygon"
+        api_key: Optional[str] = None, mask_mode: str = "polygon",
+        num_points: Optional[int] = None,
     ) -> bytes:
         if not api_key:
             raise ValueError("Gemini API Key 未提供，请在设置中填写")
@@ -135,7 +137,19 @@ class GeminiMaskEngine(BaseEngine):
             mask_data = self._get_polygon_segmentation(api_key, prompt, image_bytes)
             if not mask_data or not mask_data.get("polygon"):
                 raise ValueError(f"Gemini 未能识别出「{prompt}」，请换个描述试试")
-            return self._apply_polygon_mask(image_bytes, mask_data)
+
+            # Gemini 返回 [0,1000] 坐标 → [0,1]
+            contour_01 = [(x / 1000.0, y / 1000.0) for x, y in mask_data["polygon"]]
+            img = Image.open(io.BytesIO(image_bytes))
+            _, result = matting_cut(
+                image=img,
+                contour_points=contour_01,
+                target_points=num_points if num_points and num_points > 0 else None,
+                blur_radius=1.5,
+            )
+            buf = io.BytesIO()
+            result.save(buf, format="PNG")
+            return buf.getvalue()
 
         elif mask_mode == "mask":
             mask_data = self._get_mask_segmentation(api_key, prompt, image_bytes)
@@ -200,26 +214,6 @@ class GeminiMaskEngine(BaseEngine):
                 last_error = str(e)[:200]
                 continue
         raise RuntimeError(f"Gemini Mask 调用失败：{last_error}")
-
-    def _apply_polygon_mask(self, image_bytes: bytes, mask_data: dict) -> bytes:
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
-        w, h = img.size
-        polygon = mask_data.get("polygon", [])
-        if len(polygon) < 3:
-            raise ValueError("轮廓点不足 3 个")
-
-        scaled = [
-            (max(0, min(w - 1, int(pt[0] / 1000 * w))),
-             max(0, min(h - 1, int(pt[1] / 1000 * h))))
-            for pt in polygon
-        ]
-        mask = Image.new("L", (w, h), 0)
-        ImageDraw.Draw(mask).polygon(scaled, fill=255)
-        result = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        result.paste(img, (0, 0), mask)
-        buf = io.BytesIO()
-        result.save(buf, format="PNG")
-        return buf.getvalue()
 
     # ============================================================
     #  Mask 模式：Gemini → PNG 掩膜图 → 本地贴回原图

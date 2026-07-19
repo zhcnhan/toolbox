@@ -504,8 +504,9 @@ async def remove_background_with_prompt(
             )
         elif engine_id == "gemini_mask":
             mode = mask_mode if mask_mode in ("polygon", "mask") else "mask"
+            n_pts = num_points if num_points and 15 <= num_points <= 500 else None
             result_bytes = await engine.remove_bg_with_prompt(
-                image_bytes, prompt, api_key, mask_mode=mode
+                image_bytes, prompt, api_key, mask_mode=mode, num_points=n_pts
             )
         elif engine_id == "kimi":
             n_pts = num_points if num_points and 15 <= num_points <= 500 else 100
