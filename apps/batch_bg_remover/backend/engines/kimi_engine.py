@@ -31,7 +31,7 @@ _KIMI_MODEL = "Pro/moonshotai/Kimi-K2.6"
 _POLYGON_PROMPT = """You are a precise image segmentation assistant. Given an image and a description of an object, locate the described object precisely and return its outline as polygon coordinates.
 
 Return ONLY a valid JSON object with this exact structure:
-{"polygon": [[x1,y1], [x2,y2], ...]}
+{{"polygon": [[x1,y1], [x2,y2], ...]}}
 
 RULES:
 - ALL coordinates are normalized to 0-1000 range relative to image dimensions
@@ -70,8 +70,6 @@ class KimiEngine(BaseEngine):
         api_key: Optional[str] = None,
         num_points: int = 35,
     ) -> bytes:
-        print("[KIMI_DEBUG] remove_bg_with_prompt called", flush=True)
-        print("[KIMI_DEBUG] prompt:", prompt, "key_len:", len(api_key or ""), file=sys.stderr, flush=True)
         if not api_key:
             raise ValueError("硅基流动 API Key 未提供，请在设置中填写")
 
@@ -87,14 +85,7 @@ class KimiEngine(BaseEngine):
 
     def _get_polygon(self, api_key: str, prompt: str, image_bytes: bytes, num_points: int) -> list:
         """调用 Kimi API，获取多边形坐标"""
-        print("[KIMI_DEBUG] _get_polygon entered", flush=True)
-        print("[KIMI_DEBUG] image_bytes len:", len(image_bytes), "num_points:", num_points, flush=True)
-        try:
-            img_b64 = base64.b64encode(image_bytes).decode()
-        except Exception as e:
-            print("[KIMI_DEBUG] b64encode FAILED:", e, flush=True)
-            raise
-        print("[KIMI_DEBUG] b64encode OK, len:", len(img_b64), flush=True)
+        img_b64 = base64.b64encode(image_bytes).decode()
         user_prompt = _POLYGON_PROMPT.format(prompt=prompt, num_points=min(max(num_points, 15), 100))
 
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
