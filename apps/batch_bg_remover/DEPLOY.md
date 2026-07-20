@@ -31,7 +31,11 @@
 # 1. 克隆仓库（或上传项目文件）
 git clone https://github.com/zhcnhan/toolbox.git && cd toolbox/apps/batch_bg_remover
 
-# 2. 构建并启动
+# 2. (可选) 预下载 SAM 模型（构建时带入镜像，约 1.25GB）
+#    也可以在首次使用 SAM 引擎时在网页上自动下载
+docker compose build --build-arg DOWNLOAD_SAM=true
+
+# 3. 构建并启动
 docker compose up -d --build
 
 # 3. 查看日志
@@ -234,6 +238,7 @@ python run.py
 | `/app/uploads` | `./data/uploads` | 上传的原始图片 |
 | `/app/outputs` | `./data/outputs` | 抠图结果 |
 | `/root/.u2net` | `./data/.u2net` | rembg 模型缓存（避免重复下载） |
+| `/root/.cache/sam` | `./data/sam_models` | SAM 1 ViT-L 模型（1.25GB，可网页下载或 `deploy.sh` 预下载） |
 
 ### 手动模式
 

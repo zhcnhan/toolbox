@@ -73,6 +73,7 @@ docker compose up -d
 | rembg | 本地 | ✅ | ❌ | 免费 |
 | SAM 1 ViT-L 🆕 | 本地 | ✅ | ✅ | 硅基流动按量计费 |
 | 图标抠图 🆕 | 本地 | ✅ | ❌ | 免费 |
+| **Kimi (多边形坐标)** ✨ | 云端坐标 | ❌ | ✅ | 硅基流动按量计费 |
 | **Gemini Mask** ✨ | 云端坐标 | ❌ | ✅ | 极低 Token 成本 |
 | remove.bg | 云端 | ✅ | ❌ | 50张/月免费 |
 | 擦个图 | 云端 | ✅ | ❌ | 0.1元/次 |
@@ -168,7 +169,7 @@ toolbox/
 │   │   ├── DEPLOY.md
 │   │   └── README.md
 │   └── batch_bg_remover/       # 批量抠图 Web 服务
-│       ├── backend/            #   FastAPI 后端 + 7 引擎
+│       ├── backend/            #   FastAPI 后端 + 8 引擎
 │       ├── frontend/           #   React 前端 + PWA 支持
 │       ├── run.py              #   一键启动脚本
 │       ├── deploy.sh           #   一键部署脚本（Docker）

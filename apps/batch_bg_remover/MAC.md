@@ -21,7 +21,11 @@ node -v
 ## 第二步：下载代码
 
 ```bash
+# 方式一：从 Gitee（国内推荐，速度快）
 cd ~/Desktop && git clone https://gitee.com/gengzisama/toolbox.git
+
+# 方式二：从 GitHub（海外推荐）
+# cd ~/Desktop && git clone https://github.com/zhcnhan/toolbox.git
 ```
 
 ## 第三步：生成桌面启动器
@@ -38,6 +42,14 @@ bash ~/Desktop/toolbox/apps/batch_bg_remover/make-mac-app.sh
 - **关闭**：关掉弹出的终端窗口（不会弄坏任何东西）
 - **首次启动**会自动装依赖，等 2-3 分钟，之后秒开
 - **浏览器访问**：打开后自动弹出 `http://localhost:8001`
+
+## SAM 模型下载
+
+SAM 本地引擎（高精度 AI 抠图）需要额外下载约 1.25GB 模型文件：
+
+- **首次安装时**：`make-mac-app.sh` 会询问是否下载，选 Y 就行
+- **网页上触发**：如果安装时没下载，首次使用 SAM 引擎时网页会自动弹出下载对话框
+- **不会重复下载**：模型下载到 `~/.cache/sam/`，更新代码不影响
 
 ## 常见问题
 

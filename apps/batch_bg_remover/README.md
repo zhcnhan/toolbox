@@ -35,6 +35,10 @@
 | **擦个图** | 云端 | ✅ | ❌ | [获取](https://cagetu.com) | 0.1元/次 |
 | **自定义** | 云端 | ✅ | ✅ | 用户自填 | 取决于服务商 |
 
+> **SAM 模型下载**：首次使用 SAM 引擎时，网页会自动弹出下载对话框（1.25GB）。
+> 也可部署时预下载（`deploy.sh` 交互选择，或 Docker 构建时加 `--build-arg DOWNLOAD_SAM=true`）。
+> 模型下载到 `~/.cache/sam/sam_vit_l_0b3195.pth`，更新代码不会丢失。
+
 > **Gemini Mask 模式说明**：默认使用「多边形坐标」模式（`gemini-3.1-flash-lite`，低 Token 消耗），
 > 可在设置页切换到「掩膜 PNG」模式（`gemini-3.1-flash-lite-image`，更精确，需绑卡启用图片模型配额）。
 
@@ -246,6 +250,9 @@ class MyEngine(BaseEngine):
 | `PUT` | `/api/proxy` | 更新代理配置（支持认证） |
 | `POST` | `/api/proxy/test` | 测试代理连通性（测试 4 个网站） |
 | `POST` | `/api/engine/gemini/usage` | 查询 API Key 的今日 Gemini 用量 |
+| `GET` | `/api/engine/sam_local/status` | SAM 模型缓存状态 + 下载实时进度 |
+| `POST` | `/api/engine/sam_local/download` | 触发 SAM 模型后台下载 |
+| `GET` | `/api/engine/sam_local/download/progress` | SAM 下载实时进度 |
 | `GET` | `/api/download/{result_id}` | 下载单张结果 |
 | `GET` | `/api/download-zip?result_ids=...` | 打包下载 |
 

@@ -227,10 +227,10 @@ ssh root@server 'cd /opt/toolbox && git pull'
 |------|-----|
 | 路径 | `/opt/toolbox` |
 | 外网 | ❌ **无法访问外网**（只能访问 Gitee/码云） |
-| 服务器 IP | `183.66.27.19` |
+| 服务器 IP | `<REDACTED>` |
 | SSH 端口 | `43521` |
 | SSH 用户 | `root` |
-| SSH 命令 | `ssh root@183.66.27.19 -p 43521` |
+| SSH 命令 | `ssh root@<SERVER_IP> -p 43521` |
 | format_converter | systemd 服务，端口 8000，非 Docker |
 | batch_bg_remover | Docker Compose，端口 8001 |
 | git remote origin | Gitee（不是 GitHub） |
@@ -251,11 +251,11 @@ ssh root@server 'cd /opt/toolbox && git pull'
 | 混合端口 | `7897` |
 | SOCKS5 | （其他） |
 
-SSH 反向隧道**只能用 HTTP 端口**（不是混合端口）：
+SSH 反向隧道**只能用 HTTP 端口 7899**（混合端口 7897 不支持隧道转发）：
 
 ```bash
 # 隧道用 HTTP 端口 7899
-ssh -R 7899:localhost:7899 root@183.66.27.19 -p 43521
+ssh -R 7899:localhost:7899 root@<SERVER_IP> -p 43521
 ```
 
 执行后需要保持 SSH 窗口不关闭。
@@ -276,11 +276,11 @@ Docker 容器内的 `host.docker.internal` 会解析到服务器的 localhost。
 #### 网络故障排查
 
 ```
-# 服务器上验证代理是否通
-curl -x http://localhost:7897 https://api.siliconflow.cn/v1/chat/completions
+# 服务器上验证代理：可用 7899（HTTP 端口）或 7897（混合端口，两者都支持 HTTP）
+curl -x http://localhost:7899 https://api.siliconflow.cn/v1/chat/completions
 
 # 检查 SSH 隧道是否还在
-ss -tlnp | grep 7897
+ss -tlnp | grep 7899
 ```
 
 > ⚠️ SSH 隧道断开后需要重新执行 `ssh -R` 命令。代理断了 → Kimi/Gemini 等云端引擎全部不可用。
