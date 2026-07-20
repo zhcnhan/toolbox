@@ -253,6 +253,7 @@ class MyEngine(BaseEngine):
 | `GET` | `/api/engine/sam_local/status` | SAM 模型缓存状态 + 下载实时进度 |
 | `POST` | `/api/engine/sam_local/download` | 触发 SAM 模型后台下载 |
 | `GET` | `/api/engine/sam_local/download/progress` | SAM 下载实时进度 |
+| `GET` | `/api/original/{file_id}` | 获取上传的原图预览 |
 | `GET` | `/api/download/{result_id}` | 下载单张结果 |
 | `GET` | `/api/download-zip?result_ids=...` | 打包下载 |
 

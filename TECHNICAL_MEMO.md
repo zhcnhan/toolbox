@@ -21,7 +21,7 @@
 
 | 项目 | 版本 | 路径 | 说明 |
 |------|------|------|------|
-| root | 1.1.0 | `d:/developments/toolbox` | GitHub: [zhcnhan/toolbox](https://github.com/zhcnhan/toolbox), Gitee: [gengzisama/toolbox](https://gitee.com/gengzisama/toolbox) |
+| root | 1.2.0 | `d:/developments/toolbox` | GitHub: [zhcnhan/toolbox](https://github.com/zhcnhan/toolbox), Gitee: [gengzisama/toolbox](https://gitee.com/gengzisama/toolbox) |
 | batch_bg_remover | — | `apps/batch_bg_remover/` | 批量抠图 Web 服务，端口 8001 |
 | format_converter | — | `apps/format_converter/` | 万能格式转换 Web 服务，端口 8000 |
 | cli-tools | — | `cli-tools/` | 命令行工具（含 `git-mirror`） |
@@ -73,6 +73,8 @@
 - **自动下载**：引擎首次调用时若模型不存在，前端弹出下载对话框
 - **镜像轮询**（`_download_sam_model_background`）：ghproxy.net → gh-proxy.com → mirror.ghproxy.com → github.moeyy.xyz → 直连
 - **校验**：下载完成后检查文件大小 ≥ 1GB，否则重试下一个镜像
+
+**GPU 加速**：代码中无硬编码 `device='cpu'`，`segment-anything` 自动利用 CUDA（NVIDIA）、MPS（Apple Silicon）或 CPU（AMD/集成显卡）进行推理。Docker 镜像为 CPU 版本（`python:3.12-slim`），服务器无 GPU 时自动 CPU 推理。
 
 **SAM 分割策略**：
 1. 单 mask 模式 + box + 角点 negative 提示 → 快速出结果
@@ -187,6 +189,7 @@
 | POST | `/api/upload` | 上传图片 |
 | POST | `/api/remove-bg` | 自动抠图 |
 | POST | `/api/remove-bg-prompt` | 提示词抠图 |
+| GET | `/api/original/{file_id}` | 获取上传的原图预览 |
 | GET | `/api/download/{result_id}` | 下载单张 |
 | GET | `/api/download-zip` | 批量打包下载 |
 
@@ -389,3 +392,4 @@ cd cli-tools/git-mirror && python -m git_mirror sync toolbox
 | 2026-07 | SAM 引擎添加自动下载：后台线程 + 5 镜像轮询 + 1GB 校验 + Web 进度对话框 | `sam_local_engine.py`, `main.py`, `App.jsx`, `api.js` |
 | 2026-07 | SAM 模型下载集成到部署：Dockerfile build arg、deploy.sh 交互选择、make-mac-app.sh 首次安装 | `Dockerfile`, `deploy.sh`, `make-mac-app.sh` |
 | 2026-07 | SAM 模型不存在时 `FileNotFoundError` → `RuntimeError`（500→400 前端友好）；下载失败对话框不关闭+重试按钮 | `sam_local_engine.py`, `App.jsx` |
+| 2026-07 | 上传后直接显示原图预览（`GET /api/original/{file_id}`），替代「等待处理」文字占位 | `main.py`, `ImageGrid.jsx`, `App.jsx` |
