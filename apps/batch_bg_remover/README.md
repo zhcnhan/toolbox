@@ -27,7 +27,7 @@
 | 引擎 | 类型 | 自动抠图 | 提示词分割 | 需要 Key | 价格 |
 |------|------|:-------:|:---------:|:--------:|------|
 | **rembg** | 本地 | ✅ | ❌ | 否 | 免费 |
-| **SAM 1 ViT-L** 🆕 | 本地 | ✅ | ✅ | [获取](https://cloud.siliconflow.cn) | 硅基流动按量计费 |
+| **SAM 1 ViT-L** 🆕 | 本地 | ❌ | ✅ | [获取](https://cloud.siliconflow.cn) | 硅基流动按量计费 |
 | **图标抠图** 🆕 | 本地 | ✅ | ❌ | 否 | 免费 |
 | **Kimi (多边形坐标)** ✨ | 云端坐标 | ❌ | ✅ | [获取](https://cloud.siliconflow.cn) | 硅基流动按量计费 |
 | **Gemini Mask** ✨ | 云端坐标 | ❌ | ✅ | [获取](https://aistudio.google.com/apikey) | Free Tier 有免费额度 |
