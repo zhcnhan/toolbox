@@ -327,6 +327,23 @@ async def upload_images(files: list[UploadFile] = File(...)):
     return {"files": result}
 
 
+@app.delete("/api/upload/{file_id}")
+async def delete_upload(file_id: str):
+    """删除已上传的图片及对应的抠图结果"""
+    # 删除上传的原图
+    deleted_files = 0
+    for f in UPLOAD_DIR.glob(f"{file_id}_*"):
+        f.unlink()
+        deleted_files += 1
+
+    # 删除该文件对应的抠图结果（通过查找 results 中匹配的 file_id）
+    # 前端会同步清理状态，后端只清理文件
+    return {
+        "status": "deleted" if deleted_files > 0 else "not_found",
+        "deleted_files": deleted_files,
+    }
+
+
 @app.post("/api/remove-bg")
 async def remove_background(
     file_id: str = Form(...),

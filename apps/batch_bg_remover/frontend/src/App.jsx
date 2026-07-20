@@ -4,7 +4,7 @@ import SettingsPanel from './components/SettingsPanel';
 import DropZone from './components/DropZone';
 import ImageGrid from './components/ImageGrid';
 import PromptPanel from './components/PromptPanel';
-import { fetchEngines, uploadImages, removeBg, removeBgWithPrompt, getDownloadUrl, getDownloadZipUrl, getProxyConfig, updateProxyConfig, checkSAMStatus, triggerSAMDownload, getSAMDownloadProgress } from './api';
+import { fetchEngines, uploadImages, removeBg, removeBgWithPrompt, getDownloadUrl, getDownloadZipUrl, getProxyConfig, updateProxyConfig, checkSAMStatus, triggerSAMDownload, getSAMDownloadProgress, deleteUpload } from './api';
 
 /**
  * App.jsx — Batch Background Remover 主应用
@@ -125,6 +125,17 @@ export default function App() {
       setUploadedFiles(prev => [...prev, ...uploaded]);
     } catch (e) {
       alert('上传失败: ' + e.message);
+    }
+  }, []);
+
+  // 删除已上传的图片
+  const handleDeleteFile = useCallback(async (fileId) => {
+    try {
+      await deleteUpload(fileId);
+      setUploadedFiles(prev => prev.filter(f => f.file_id !== fileId));
+      setResults(prev => prev.filter(r => r.file_id !== fileId));
+    } catch (e) {
+      alert('删除失败: ' + e.message);
     }
   }, []);
 
@@ -480,6 +491,7 @@ export default function App() {
             files={uploadedFiles}
             results={results}
             onPromptFix={setPromptTarget}
+            onDelete={handleDeleteFile}
             getDownloadUrl={getDownloadUrl}
             getOriginalUrl={(fileId) => `/api/original/${fileId}`}
           />

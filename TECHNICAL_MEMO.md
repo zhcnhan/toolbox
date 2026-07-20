@@ -46,7 +46,7 @@
 | ID | 名称 | 类型 | 自动抠图 | 提示词分割 | 需要 Key | 价格 |
 |----|------|------|:-------:|:---------:|:--------:|------|
 | `rembg_local` | rembg | 本地 | ✅ | ❌ | 否 | 免费 |
-| `sam_local` | SAM 1 ViT-L | 本地 | ✅ | ✅ | 硅基流动 API Key | 按量计费 |
+| `sam_local` | SAM 1 ViT-L | 本地 | ❌ (需Qwen3-VL定位，每次花钱) | ✅ | 硅基流动 API Key | 按量计费 |
 | `icon_bg` | 图标抠图 | 本地 | ✅ | ❌ | 否 | 免费 |
 | `kimi` | Kimi (多边形坐标) | 云端 | ❌ | ✅ | 硅基流动 API Key | 按量计费 |
 | `gemini_mask` | Gemini Mask | 云端 | ❌ | ✅ | Google API Key | Free Tier |

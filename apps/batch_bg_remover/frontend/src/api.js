@@ -94,6 +94,18 @@ export async function getSAMDownloadProgress() {
   return await res.json();
 }
 
+// ── 删除上传 ──────────────────────────────────────────────────
+
+export async function deleteUpload(fileId) {
+  const res = await fetch(`${BASE}/upload/${fileId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    let msg = '删除失败';
+    try { const err = await res.json(); msg = err.detail || msg; } catch {}
+    throw new Error(msg);
+  }
+  return await res.json();
+}
+
 // ── 代理配置 ────────────────────────────────────────────────────
 
 export async function getProxyConfig() {

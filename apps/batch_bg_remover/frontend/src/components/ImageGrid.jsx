@@ -9,7 +9,7 @@ import { motion } from 'framer-motion';
  *   - error: 显示错误信息 + 重试按钮
  */
 
-export default function ImageGrid({ files, results, onPromptFix, getDownloadUrl, getOriginalUrl }) {
+export default function ImageGrid({ files, results, onPromptFix, onDelete, getDownloadUrl, getOriginalUrl }) {
   const getResult = (fileId) => results.find(r => r.file_id === fileId);
 
   return (
@@ -34,6 +34,15 @@ export default function ImageGrid({ files, results, onPromptFix, getDownloadUrl,
           >
             {/* 预览图 */}
             <div className="aspect-square bg-black/20 relative overflow-hidden">
+              {!isProcessing && (
+                <button
+                  onClick={() => onDelete(file.file_id)}
+                  className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/50 hover:bg-red-500/70 text-white/70 hover:text-white flex items-center justify-center text-sm transition-all"
+                  title="删除此图片"
+                >
+                  ✕
+                </button>
+              )}
               {isDone ? (
                 <img
                   src={getDownloadUrl(result.result_id)}
