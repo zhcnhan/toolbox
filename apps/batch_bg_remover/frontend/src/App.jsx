@@ -481,6 +481,7 @@ export default function App() {
             results={results}
             onPromptFix={setPromptTarget}
             getDownloadUrl={getDownloadUrl}
+            getOriginalUrl={(fileId) => `/api/original/${fileId}`}
           />
         </motion.div>
       )}

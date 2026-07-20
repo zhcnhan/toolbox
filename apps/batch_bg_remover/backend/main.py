@@ -392,6 +392,27 @@ async def download_result(result_id: str):
     )
 
 
+@app.get("/api/original/{file_id}")
+async def get_original(file_id: str):
+    """获取上传的原图预览"""
+    files = list(UPLOAD_DIR.glob(f"{file_id}_*"))
+    if not files:
+        raise HTTPException(404, "原图未找到")
+    file_path = files[0]
+    # 根据扩展名判断 media_type
+    ext = file_path.suffix.lower()
+    media_type = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".bmp": "image/bmp",
+        ".tiff": "image/tiff",
+        ".tif": "image/tiff",
+    }.get(ext, "application/octet-stream")
+    return FileResponse(file_path, media_type=media_type)
+
+
 @app.get("/api/download-zip")
 async def download_zip(result_ids: str = Query(..., description="逗号分隔的 result_id 列表")):
     """打包下载多个结果"""

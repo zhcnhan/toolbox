@@ -9,7 +9,7 @@ import { motion } from 'framer-motion';
  *   - error: 显示错误信息 + 重试按钮
  */
 
-export default function ImageGrid({ files, results, onPromptFix, getDownloadUrl }) {
+export default function ImageGrid({ files, results, onPromptFix, getDownloadUrl, getOriginalUrl }) {
   const getResult = (fileId) => results.find(r => r.file_id === fileId);
 
   return (
@@ -62,9 +62,12 @@ export default function ImageGrid({ files, results, onPromptFix, getDownloadUrl 
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-full text-white/20 text-xs">
-                  等待处理...
-                </div>
+                <img
+                  src={getOriginalUrl(file.file_id)}
+                  alt={file.filename}
+                  className="w-full h-full object-contain p-2 opacity-80"
+                  loading="lazy"
+                />
               )}
             </div>
 
