@@ -518,7 +518,7 @@ class SamLocalEngine(BaseEngine):
                 "精度高，支持文本提示选取特定物体"
             ),
             type="local",
-            supports_auto=True,
+            supports_auto=False,  # 自动模式也要调 Qwen3-VL 花钱，只开放提示词模式
             supports_prompt=True,
             needs_api_key=True,
             api_key_label="硅基流动 API Key",
