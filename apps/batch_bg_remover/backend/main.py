@@ -19,6 +19,8 @@ import zipfile
 import shutil
 import asyncio
 import threading
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
@@ -69,6 +71,87 @@ app.add_middleware(
 
 # 线程池，用于执行同步的本地模型推理
 _executor = ThreadPoolExecutor(max_workers=2)
+
+# ---------------------------------------------------------------------------
+# 使用监控（临时，用于客户试用期跟踪）
+# ---------------------------------------------------------------------------
+USAGE_LOG = BASE_DIR / "data" / "usage.jsonl"
+USAGE_LOG.parent.mkdir(parents=True, exist_ok=True)
+_usage_lock = threading.Lock()
+
+
+def _log_usage(entry: dict):
+    """记录一条使用日志到 usage.jsonl"""
+    entry["_time"] = datetime.now().isoformat()
+    try:
+        with _usage_lock, open(USAGE_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass  # 日志不能影响主流程
+
+
+def _get_usage_stats() -> dict:
+    """汇总使用统计"""
+    stats = {
+        "total_requests": 0,
+        "total_images": 0,
+        "by_engine": {},
+        "errors": [],
+        "first_request": None,
+        "last_request": None,
+        "log_file": str(USAGE_LOG),
+    }
+    if not USAGE_LOG.exists():
+        return stats
+    try:
+        with open(USAGE_LOG, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                stats["total_requests"] += 1
+                stats["total_images"] += entry.get("image_count", 1)
+                eid = entry.get("engine", "unknown")
+                if eid not in stats["by_engine"]:
+                    stats["by_engine"][eid] = {"count": 0, "success": 0, "fail": 0}
+                stats["by_engine"][eid]["count"] += 1
+                if entry.get("success"):
+                    stats["by_engine"][eid]["success"] += 1
+                else:
+                    stats["by_engine"][eid]["fail"] += 1
+                    stats["errors"].append({
+                        "time": entry.get("_time"),
+                        "engine": eid,
+                        "error": entry.get("error", "")[:120],
+                    })
+                if stats["first_request"] is None:
+                    stats["first_request"] = entry.get("_time")
+                stats["last_request"] = entry.get("_time")
+        # 只保留最近 20 条错误
+        stats["errors"] = stats["errors"][-20:]
+    except Exception:
+        pass
+    return stats
+
+
+@app.get("/api/stats")
+async def usage_stats():
+    """查看使用统计（临时监控用）"""
+    return _get_usage_stats()
+
+
+@app.post("/api/stats/clear")
+async def clear_stats():
+    """清空使用日志"""
+    try:
+        USAGE_LOG.unlink(missing_ok=True)
+        return {"status": "cleared"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 def _run_sync(coro_func, *args):
@@ -265,8 +348,10 @@ async def remove_background(
     if not files:
         raise HTTPException(404, "文件未找到，请重新上传")
     file_path = files[0]
+    filename = file_path.name
 
     image_bytes = file_path.read_bytes()
+    t0 = time.time()
 
     try:
         engine_info = engine.__class__.info()
@@ -276,17 +361,26 @@ async def remove_background(
                 _executor, _run_sync(engine.remove_bg, image_bytes, api_key)
             )
         elif engine_id == "custom":
-            # 自定义引擎需要额外参数
             result_bytes = await engine.remove_bg(
                 image_bytes, api_key, base_url=base_url or "", model_name=model_name or ""
             )
         else:
             result_bytes = await engine.remove_bg(image_bytes, api_key)
 
-        # 保存结果
+        elapsed = time.time() - t0
         result_id = uuid.uuid4().hex
         result_path = OUTPUT_DIR / f"{result_id}.png"
         result_path.write_bytes(result_bytes)
+
+        _log_usage({
+            "action": "remove_bg",
+            "engine": engine_id,
+            "filename": filename,
+            "image_count": 1,
+            "success": True,
+            "elapsed_s": round(elapsed, 2),
+            "result_size": len(result_bytes),
+        })
 
         return {
             "success": True,
@@ -295,12 +389,16 @@ async def remove_background(
         }
 
     except NotImplementedError as e:
+        _log_usage({"action": "remove_bg", "engine": engine_id, "filename": filename, "success": False, "error": str(e)[:120], "elapsed_s": round(time.time() - t0, 2)})
         raise HTTPException(400, str(e))
     except ValueError as e:
+        _log_usage({"action": "remove_bg", "engine": engine_id, "filename": filename, "success": False, "error": str(e)[:120], "elapsed_s": round(time.time() - t0, 2)})
         raise HTTPException(400, str(e))
     except RuntimeError as e:
+        _log_usage({"action": "remove_bg", "engine": engine_id, "filename": filename, "success": False, "error": str(e)[:120], "elapsed_s": round(time.time() - t0, 2)})
         raise HTTPException(400, str(e))
     except Exception as e:
+        _log_usage({"action": "remove_bg", "engine": engine_id, "filename": filename, "success": False, "error": str(e)[:120], "elapsed_s": round(time.time() - t0, 2)})
         raise HTTPException(500, f"抠图失败: {str(e)}")
 
 
@@ -330,8 +428,10 @@ async def remove_background_with_prompt(
     if not files:
         raise HTTPException(404, "文件未找到，请重新上传")
     file_path = files[0]
+    filename = file_path.name
 
     image_bytes = file_path.read_bytes()
+    t0 = time.time()
 
     try:
         engine_info = engine.__class__.info()
@@ -358,9 +458,21 @@ async def remove_background_with_prompt(
         else:
             result_bytes = await engine.remove_bg_with_prompt(image_bytes, prompt, api_key)
 
+        elapsed = time.time() - t0
         result_id = uuid.uuid4().hex
         result_path = OUTPUT_DIR / f"{result_id}.png"
         result_path.write_bytes(result_bytes)
+
+        _log_usage({
+            "action": "remove_bg_prompt",
+            "engine": engine_id,
+            "filename": filename,
+            "prompt": prompt[:80],
+            "image_count": 1,
+            "success": True,
+            "elapsed_s": round(elapsed, 2),
+            "result_size": len(result_bytes),
+        })
 
         return {
             "success": True,
@@ -369,10 +481,13 @@ async def remove_background_with_prompt(
         }
 
     except NotImplementedError as e:
+        _log_usage({"action": "remove_bg_prompt", "engine": engine_id, "filename": filename, "prompt": prompt[:80], "success": False, "error": str(e)[:120], "elapsed_s": round(time.time() - t0, 2)})
         raise HTTPException(400, str(e))
     except ValueError as e:
+        _log_usage({"action": "remove_bg_prompt", "engine": engine_id, "filename": filename, "prompt": prompt[:80], "success": False, "error": str(e)[:120], "elapsed_s": round(time.time() - t0, 2)})
         raise HTTPException(400, str(e))
     except RuntimeError as e:
+        _log_usage({"action": "remove_bg_prompt", "engine": engine_id, "filename": filename, "prompt": prompt[:80], "success": False, "error": str(e)[:120], "elapsed_s": round(time.time() - t0, 2)})
         raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, f"抠图失败: {str(e)}")
