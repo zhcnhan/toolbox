@@ -19,9 +19,6 @@ proxy.py — 全局代理配置管理
 
     from proxy import get_proxy_url
     resp = httpx.get(url, proxy=get_proxy_url())
-
-    from proxy import apply_proxy_env
-    apply_proxy_env()  # 适用于 replicate SDK
 """
 
 import json
@@ -142,7 +139,6 @@ def get_proxy_url() -> str | None:
 def apply_proxy_env() -> None:
     """
     将代理写入环境变量 HTTP_PROXY / HTTPS_PROXY。
-    适用于 replicate SDK 等无法直接传 proxies 参数的情况。
     """
     config = _load_config()
     if config["enabled"] and config["url"]:

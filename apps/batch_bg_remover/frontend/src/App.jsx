@@ -4,7 +4,7 @@ import SettingsPanel from './components/SettingsPanel';
 import DropZone from './components/DropZone';
 import ImageGrid from './components/ImageGrid';
 import PromptPanel from './components/PromptPanel';
-import { fetchEngines, uploadImages, removeBg, removeBgWithPrompt, getDownloadUrl, getDownloadZipUrl, getProxyConfig, updateProxyConfig, checkCLIPSegStatus, triggerCLIPSegDownload, getCLIPSegDownloadProgress, checkCLIPSegDeps, installCLIPSegDeps } from './api';
+import { fetchEngines, uploadImages, removeBg, removeBgWithPrompt, getDownloadUrl, getDownloadZipUrl, getProxyConfig, updateProxyConfig, checkSAMStatus, triggerSAMDownload, getSAMDownloadProgress } from './api';
 
 /**
  * App.jsx — Batch Background Remover 主应用
@@ -51,13 +51,13 @@ export default function App() {
   // 代理配置（从服务器加载，持久化在服务端）
   const [proxyConfig, setProxyConfig] = useState({ enabled: false, url: '', auth_type: 'none', username: '', password: '' });
 
-  // CLIPSeg 模型下载状态
-  const [clipsegModelCached, setCLIPSegModelCached] = useState(true);
-  const [clipsegDownloading, setCLIPSegDownloading] = useState(false);
-  const [clipsegProgress, setCLIPSegProgress] = useState(0);
-  const [clipsegStage, setCLIPSegStage] = useState('');
-  const [clipsegShowDialog, setCLIPSegShowDialog] = useState(false);
-  const [pendingPromptTask, setPendingPromptTask] = useState(null); // 等待下载完成后执行的抠图任务
+  // SAM 模型状态
+  const [samModelExists, setSamModelExists] = useState(true);
+  const [samDownloading, setSamDownloading] = useState(false);
+  const [samProgress, setSamProgress] = useState(0);
+  const [samStage, setSamStage] = useState('');
+  const [samShowDialog, setSamShowDialog] = useState(false);
+  const [pendingSamTask, setPendingSamTask] = useState(null); // 等待下载完成后执行的抠图任务
 
   // 加载引擎列表和代理配置
   useEffect(() => {
@@ -91,10 +91,6 @@ export default function App() {
     if (engineId === 'custom') {
       extra.base_url = settings.custom_base_url || '';
       extra.model_name = settings.custom_model_name || '';
-    }
-    // CLIPSeg 灵敏度
-    if (engineId === 'clipseg_local' && settings.clipseg_sensitivity !== undefined) {
-      extra.sensitivity = settings.clipseg_sensitivity;
     }
     // Gemini Mask 模式（默认 polygon，强制覆盖旧 localStorage 残留）
     if (engineId === 'gemini_mask') {
@@ -152,6 +148,21 @@ export default function App() {
       if (!extra.model_name) { alert('请在设置中填写自定义引擎的模型名称'); return; }
     }
 
+    // SAM 本地引擎检查模型是否存在
+    if (engineId === 'sam_local') {
+      const status = await checkSAMStatus();
+      if (!status.model_exists && !status.running) {
+        setPendingSamTask({ engineId, apiKey, extra, autoMode: true });
+        setSamShowDialog(true);
+        return;
+      }
+      if (status.running) {
+        setPendingSamTask({ engineId, apiKey, extra, autoMode: true });
+        setSamShowDialog(true);
+        return;
+      }
+    }
+
     setProcessing(true);
 
     const newResults = [];
@@ -190,7 +201,7 @@ export default function App() {
     // 检查引擎是否支持提示词分割
     const engine = engines.find(e => e.id === engineId);
     if (engine && !engine.supports_prompt) {
-      alert(`引擎 "${engine.name}" 不支持提示词分割，请在设置中选择 CLIPSeg / Gemini / Replicate / 自定义`);
+      alert(`引擎 "${engine.name}" 不支持提示词分割，请在设置中选择支持该模式的引擎`);
       return;
     }
     // 云端引擎检查 API Key
@@ -204,31 +215,18 @@ export default function App() {
       if (!extra.model_name) { alert('请在设置中填写自定义引擎的模型名称'); return; }
     }
 
-    // CLIPSeg 检查依赖和模型
-    if (engineId === 'clipseg_local') {
-      try {
-        // 先检查依赖（torch + transformers）
-        const deps = await checkCLIPSegDeps();
-        if (!deps.installed && !deps.running) {
-          setPendingPromptTask({ fileId, prompt, engineId, apiKey, extra });
-          setCLIPSegShowDialog('deps');
-          return;
-        }
-        if (deps.running) {
-          setPendingPromptTask({ fileId, prompt, engineId, apiKey, extra });
-          setCLIPSegShowDialog('deps');
-          return;
-        }
-        // 再检查模型是否已缓存
-        const status = await checkCLIPSegStatus();
-        if (!status.cached) {
-          setPendingPromptTask({ fileId, prompt, engineId, apiKey, extra });
-          setCLIPSegModelCached(false);
-          setCLIPSegShowDialog('model');
-          return;
-        }
-      } catch {
-        // 检查失败，继续执行（后端会报错）
+    // SAM 本地引擎检查模型是否存在
+    if (engineId === 'sam_local') {
+      const status = await checkSAMStatus();
+      if (!status.model_exists && !status.running) {
+        setPendingSamTask({ fileId, prompt, engineId, apiKey, extra, autoMode: false });
+        setSamShowDialog(true);
+        return;
+      }
+      if (status.running) {
+        setPendingSamTask({ fileId, prompt, engineId, apiKey, extra, autoMode: false });
+        setSamShowDialog(true);
+        return;
       }
     }
 
@@ -263,45 +261,48 @@ export default function App() {
     }
   }, [uploadedFiles]);
 
-  // 点击下载模型
-  const handleCLIPSegDownload = useCallback(async () => {
-    setCLIPSegDownloading(true);
+  // SAM 模型下载
+  const handleSAMDownload = useCallback(async () => {
+    setSamDownloading(true);
     try {
-      await triggerCLIPSegDownload();
-      // 轮询进度
+      await triggerSAMDownload();
       const poll = setInterval(async () => {
         try {
-          const prog = await getCLIPSegDownloadProgress();
-          setCLIPSegProgress(prog.progress);
+          const prog = await getSAMDownloadProgress();
+          setSamProgress(prog.progress);
+          setSamStage(prog.stage || '');
           if (prog.error) {
             clearInterval(poll);
-            alert('模型下载失败: ' + prog.error);
-            setCLIPSegDownloading(false);
-            setCLIPSegShowDialog(false);
-            return;
+            setSamDownloading(false);
+            setSamProgress(0);
+            setSamStage('下载失败: ' + prog.error);
+            return; // 不关闭对话框，让用户看到错误信息后可以重试
           }
           if (!prog.running && prog.progress >= 100) {
             clearInterval(poll);
-            setCLIPSegProgress(100);
-            setCLIPSegModelCached(true);
-            setCLIPSegDownloading(false);
-            setCLIPSegShowDialog(false);
-            // 继续执行等待中的抠图任务
-            if (pendingPromptTask) {
-              doPromptRemove(
-                pendingPromptTask.fileId, pendingPromptTask.prompt,
-                pendingPromptTask.engineId, pendingPromptTask.apiKey, pendingPromptTask.extra
-              );
-              setPendingPromptTask(null);
+            setSamProgress(100);
+            setSamModelExists(true);
+            setSamDownloading(false);
+            setSamShowDialog(false);
+            // 继续等待中的抠图任务
+            if (pendingSamTask) {
+              const task = pendingSamTask;
+              setPendingSamTask(null);
+              if (task.autoMode) {
+                // 重新触发自动抠图
+                handleRemoveAll();
+              } else {
+                await doPromptRemove(task.fileId, task.prompt, task.engineId, task.apiKey, task.extra);
+              }
             }
           }
         } catch { /* 继续轮询 */ }
-      }, 1500);
+      }, 2000);
     } catch (e) {
       alert('启动下载失败: ' + e.message);
-      setCLIPSegDownloading(false);
+      setSamDownloading(false);
     }
-  }, [pendingPromptTask, doPromptRemove]);
+  }, [pendingSamTask, doPromptRemove, handleRemoveAll]);
 
   // 下载
   const doneResults = results.filter(r => r.status === 'done');
@@ -390,15 +391,15 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* CLIPSeg 下载/安装对话框 */}
+      {/* SAM 模型下载对话框 */}
       <AnimatePresence>
-        {clipsegShowDialog && (
+        {samShowDialog && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-            onClick={() => { if (!clipsegDownloading && clipsegShowDialog !== 'deps_installing') { setCLIPSegShowDialog(false); setPendingPromptTask(null); } }}
+            onClick={() => { if (!samDownloading) { setSamShowDialog(false); setPendingSamTask(null); } }}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -407,119 +408,58 @@ export default function App() {
               className="glass p-6 rounded-2xl max-w-sm w-full mx-4 text-center"
               onClick={e => e.stopPropagation()}
             >
-              {clipsegShowDialog === 'deps' ? (
-                <>
-                  <div className="text-4xl mb-3">📦</div>
-                  <h3 className="text-lg font-bold text-white mb-2">缺少依赖</h3>
-                  <p className="text-sm text-white/50 mb-4">
-                    CLIPSeg 需要安装 PyTorch + transformers（约 800MB），
-                    是否现在安装？
-                  </p>
-                  <div className="flex gap-3 justify-center">
-                    <button
-                      className="px-5 py-2 bg-accent-blue/20 text-accent-blue rounded-xl text-sm hover:bg-accent-blue/30 transition"
-                      onClick={async () => {
-                        setCLIPSegShowDialog('deps_installing');
-                        try {
-                          await installCLIPSegDeps();
-                          const poll = setInterval(async () => {
-                            const s = await checkCLIPSegDeps();
-                            setCLIPSegProgress(s.progress);
-                            setCLIPSegStage(s.stage || '');
-                            if (s.error) {
-                              clearInterval(poll);
-                              alert('安装失败: ' + s.error);
-                              setCLIPSegShowDialog(false);
-                              setPendingPromptTask(null);
-                              return;
-                            }
-                            if (s.installed) {
-                              clearInterval(poll);
-                              setCLIPSegShowDialog(false);
-                              if (pendingPromptTask) {
-                                doPromptRemove(
-                                  pendingPromptTask.fileId, pendingPromptTask.prompt,
-                                  pendingPromptTask.engineId, pendingPromptTask.apiKey, pendingPromptTask.extra
-                                );
-                                setPendingPromptTask(null);
-                              }
-                            }
-                          }, 2000);
-                        } catch (e) {
-                          alert('启动安装失败: ' + e.message);
-                          setCLIPSegShowDialog(false);
-                          setPendingPromptTask(null);
-                        }
-                      }}
-                    >
-                      开始安装
-                    </button>
-                    <button
-                      className="px-5 py-2 bg-white/5 text-white/40 rounded-xl text-sm hover:bg-white/10 transition"
-                      onClick={() => { setCLIPSegShowDialog(false); setPendingPromptTask(null); }}
-                    >
-                      暂不使用
-                    </button>
+              <div className="text-4xl mb-3">🎯</div>
+              <h3 className="text-lg font-bold text-white mb-2">SAM 模型未下载</h3>
+              <p className="text-sm text-white/50 mb-4">
+                SAM 1 ViT-L (1.25GB) 需要下载后才可使用。
+                {samDownloading ? '正在下载中...' : '是否现在下载？'}
+              </p>
+              {samDownloading ? (
+                <div className="space-y-3">
+                  <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-accent-blue to-accent-purple rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${samProgress}%` }}
+                      transition={{ duration: 0.3 }}
+                    />
                   </div>
-                  <p className="text-xs text-white/30 mt-3">如果急用提示词分割，可先用 Gemini 等在线 API</p>
-                </>
-              ) : clipsegShowDialog === 'deps_installing' ? (
-                <>
-                  <div className="text-4xl mb-3">📦</div>
-                  <h3 className="text-lg font-bold text-white mb-2">正在安装依赖</h3>
-                  <p className="text-sm text-white/50 mb-4">{clipsegStage || '安装中...'}</p>
-                  <div className="space-y-3">
-                    <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
-                      <motion.div
-                        className="h-full bg-gradient-to-r from-accent-blue to-accent-purple rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${clipsegProgress}%` }}
-                        transition={{ duration: 0.3 }}
-                      />
-                    </div>
-                    <p className="text-xs text-white/40">{clipsegProgress}%</p>
-                    <p className="text-xs text-white/30">下载完成后会自动继续抠图，请勿关闭页面</p>
-                    <p className="text-xs text-white/20">如果急用，可切换 Gemini 等在线引擎</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="text-4xl mb-3">🤖</div>
-                  <h3 className="text-lg font-bold text-white mb-2">CLIPSeg 模型未下载</h3>
-                  <p className="text-sm text-white/50 mb-4">
-                    提示词分割功能需要下载模型（~1.5GB），
-                    {clipsegDownloading ? '正在下载中...' : '是否现在下载？'}
-                  </p>
-                  {clipsegDownloading ? (
-                    <div className="space-y-3">
-                      <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
-                        <motion.div
-                          className="h-full bg-gradient-to-r from-accent-blue to-accent-purple rounded-full"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${clipsegProgress}%` }}
-                          transition={{ duration: 0.3 }}
-                        />
-                      </div>
-                      <p className="text-xs text-white/40">{clipsegProgress}%</p>
-                      <p className="text-xs text-white/30">下载完成后会自动继续，请勿关闭页面</p>
-                    </div>
-                  ) : (
-                    <div className="flex gap-3 justify-center">
+                  <p className="text-xs text-white/40">{samProgress}%</p>
+                  <p className="text-xs text-white/30">{samStage}</p>
+                  {samProgress === 0 && samStage && samStage.includes('失败') ? (
+                    <div className="flex gap-3 justify-center mt-3">
                       <button
-                        className="px-5 py-2 bg-accent-blue/20 text-accent-blue rounded-xl text-sm hover:bg-accent-blue/30 transition"
-                        onClick={handleCLIPSegDownload}
+                        className="px-5 py-2 bg-accent-orange/20 text-accent-orange rounded-xl text-sm hover:bg-accent-orange/30 transition"
+                        onClick={handleSAMDownload}
                       >
-                        开始下载
+                        重新下载
                       </button>
                       <button
                         className="px-5 py-2 bg-white/5 text-white/40 rounded-xl text-sm hover:bg-white/10 transition"
-                        onClick={() => { setCLIPSegShowDialog(false); setPendingPromptTask(null); }}
+                        onClick={() => { setSamShowDialog(false); setPendingSamTask(null); }}
                       >
-                        稍后再说
+                        换引擎
                       </button>
                     </div>
+                  ) : (
+                    <p className="text-xs text-white/20">下载完成后会自动继续抠图，请勿关闭页面</p>
                   )}
-                </>
+                </div>
+              ) : (
+                <div className="flex gap-3 justify-center">
+                  <button
+                    className="px-5 py-2 bg-accent-blue/20 text-accent-blue rounded-xl text-sm hover:bg-accent-blue/30 transition"
+                    onClick={handleSAMDownload}
+                  >
+                    开始下载
+                  </button>
+                  <button
+                    className="px-5 py-2 bg-white/5 text-white/40 rounded-xl text-sm hover:bg-white/10 transition"
+                    onClick={() => { setSamShowDialog(false); setPendingSamTask(null); }}
+                  >
+                    暂不使用，换引擎
+                  </button>
+                </div>
               )}
             </motion.div>
           </motion.div>

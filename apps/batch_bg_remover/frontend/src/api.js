@@ -74,6 +74,28 @@ export function getDownloadZipUrl(resultIds) {
   return `${BASE}/download-zip?result_ids=${resultIds.join(',')}`;
 }
 
+// ── SAM 模型下载 ──────────────────────────────────────────────────
+
+export async function checkSAMStatus() {
+  const res = await fetch(`${BASE}/engine/sam_local/status`);
+  if (!res.ok) return { model_exists: false, running: false, progress: 0, error: '' };
+  return await res.json();
+}
+
+export async function triggerSAMDownload() {
+  const res = await fetch(`${BASE}/engine/sam_local/download`, { method: 'POST' });
+  if (!res.ok) throw new Error('触发模型下载失败');
+  return await res.json();
+}
+
+export async function getSAMDownloadProgress() {
+  const res = await fetch(`${BASE}/engine/sam_local/download/progress`);
+  if (!res.ok) return { running: false, progress: 0, error: '', stage: '' };
+  return await res.json();
+}
+
+// ── 代理配置 ────────────────────────────────────────────────────
+
 export async function getProxyConfig() {
   const res = await fetch(`${BASE}/proxy`);
   if (!res.ok) throw new Error('获取代理配置失败');
@@ -95,32 +117,4 @@ export async function updateProxyConfig(enabled, url, authType = 'none', usernam
   return await res.json();
 }
 
-export async function checkCLIPSegStatus() {
-  const res = await fetch(`${BASE}/engine/clipseg_local/status`);
-  if (!res.ok) return { cached: false, downloading: false, progress: 0, error: '' };
-  return await res.json();
-}
 
-export async function triggerCLIPSegDownload() {
-  const res = await fetch(`${BASE}/engine/clipseg_local/download`, { method: 'POST' });
-  if (!res.ok) throw new Error('触发模型下载失败');
-  return await res.json();
-}
-
-export async function getCLIPSegDownloadProgress() {
-  const res = await fetch(`${BASE}/engine/clipseg_local/download/progress`);
-  if (!res.ok) return { running: false, progress: 0, error: '' };
-  return await res.json();
-}
-
-export async function checkCLIPSegDeps() {
-  const res = await fetch(`${BASE}/engine/clipseg_local/deps-status`);
-  if (!res.ok) return { installed: false, running: false, progress: 0, error: '', stage: '' };
-  return await res.json();
-}
-
-export async function installCLIPSegDeps() {
-  const res = await fetch(`${BASE}/engine/clipseg_local/install-deps`, { method: 'POST' });
-  if (!res.ok) throw new Error('触发依赖安装失败');
-  return await res.json();
-}

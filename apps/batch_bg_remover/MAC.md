@@ -49,4 +49,3 @@ bash ~/Desktop/toolbox/apps/batch_bg_remover/make-mac-app.sh
 | 双击「批量抠图.command」提示无法验证开发者 | macOS 安全策略拦截 | 去「系统设置 → 隐私与安全性 → 安全性」，点「仍要打开」；或按住 `⌃Control` 键再双击文件 |
 | 下载慢或失败 | 网络问题 | 如果有 VPN 就开一下，没有就多试几次 |
 | 打开后浏览器白屏 | 还没启动完 | 等终端出现 `http://localhost:8001` 就行了 |
-| CLIPSeg 抠图失败：No module named 'torch' | 默认没装 torch | 网页上会弹出安装对话框，点「开始安装」自动后台下载；或终端跑 `cd ~/Desktop/toolbox/apps/batch_bg_remover && source backend/venv/bin/activate && pip install torch -i https://pypi.tuna.tsinghua.edu.cn/simple` |

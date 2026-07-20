@@ -55,7 +55,7 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB per image
 # ---------------------------------------------------------------------------
 app = FastAPI(
     title="Batch Background Remover",
-    description="批量抠图服务：支持本地引擎（rembg/CLIPSeg）和云端引擎（Gemini/Replicate）",
+    description="批量抠图服务：支持本地引擎（rembg/SAM）和云端引擎（Gemini/Kimi/硅基流动/自定义）",
     version="1.0.0",
 )
 
@@ -184,187 +184,37 @@ async def gemini_usage(api_key: str = Form("")):
     return {"usage": tracker.get_info()}
 
 
-# ============================================================
-_CLIPSEG_MODEL_ID = "CIDAS/clipseg-rd64-refined"
-_CLIPSEG_DOWNLOAD_TASK: dict = {"running": False, "progress": 0, "error": ""}
+# ---------------------------------------------------------------------------
+# SAM 本地引擎 — 模型下载管理
+# ---------------------------------------------------------------------------
+from engines.sam_local_engine import get_sam_status, trigger_sam_download
 
 
-def _get_clipseg_cache_path() -> Path | None:
-    """检查 CLIPSeg 模型是否已缓存，返回缓存目录或 None"""
-    # HuggingFace 缓存路径
-    hf_home = Path(os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface"))
-    hub_dir = hf_home / "hub"
-    if not hub_dir.exists():
-        return None
-    # 查找模型缓存目录
-    for d in hub_dir.iterdir():
-        if d.is_dir() and "clipseg-rd64-refined" in d.name:
-            # 检查关键文件
-            snapshots = d / "snapshots"
-            if snapshots.exists():
-                for s in snapshots.iterdir():
-                    if (s / "pytorch_model.bin").exists():
-                        return s
-    return None
+@app.get("/api/engine/sam_local/status")
+async def sam_status():
+    """检查 SAM 模型缓存状态"""
+    return get_sam_status()
 
 
-@app.get("/api/engine/clipseg_local/status")
-async def clipseg_status():
-    """检查 CLIPSeg 模型下载状态"""
-    cached = _get_clipseg_cache_path() is not None
+@app.post("/api/engine/sam_local/download")
+async def sam_download():
+    """触发 SAM 模型下载"""
+    result = trigger_sam_download()
+    return result
+
+
+@app.get("/api/engine/sam_local/download/progress")
+async def sam_download_progress():
+    """获取 SAM 模型下载进度"""
+    status = get_sam_status()
     return {
-        "engine_id": "clipseg_local",
-        "cached": cached,
-        "downloading": _CLIPSEG_DOWNLOAD_TASK["running"],
-        "progress": _CLIPSEG_DOWNLOAD_TASK["progress"],
-        "error": _CLIPSEG_DOWNLOAD_TASK["error"],
+        "running": status["running"],
+        "progress": status["progress"],
+        "error": status["error"],
+        "stage": status["stage"],
+        "downloaded_bytes": status["downloaded_bytes"],
+        "total_bytes": status["total_bytes"],
     }
-
-
-def _download_clipseg_background():
-    """后台线程：下载 CLIPSeg 模型并更新进度"""
-    try:
-        from huggingface_hub import snapshot_download
-        _CLIPSEG_DOWNLOAD_TASK["running"] = True
-        _CLIPSEG_DOWNLOAD_TASK["progress"] = 0
-        _CLIPSEG_DOWNLOAD_TASK["error"] = ""
-        os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-
-        # 检查是否已缓存
-        if _get_clipseg_cache_path() is not None:
-            _CLIPSEG_DOWNLOAD_TASK["progress"] = 100
-            _CLIPSEG_DOWNLOAD_TASK["running"] = False
-            return
-
-        # 下载模型（新版 huggingface_hub 已移除 callback 参数）
-        _CLIPSEG_DOWNLOAD_TASK["progress"] = 50
-        snapshot_download(
-            _CLIPSEG_MODEL_ID,
-            local_files_only=False,
-        )
-        _CLIPSEG_DOWNLOAD_TASK["progress"] = 100
-    except Exception as e:
-        _CLIPSEG_DOWNLOAD_TASK["error"] = str(e)
-    finally:
-        _CLIPSEG_DOWNLOAD_TASK["running"] = False
-
-
-@app.post("/api/engine/clipseg_local/download")
-async def clipseg_download():
-    """触发 CLIPSeg 模型下载"""
-    if _CLIPSEG_DOWNLOAD_TASK["running"]:
-        return {
-            "status": "already_downloading",
-            "progress": _CLIPSEG_DOWNLOAD_TASK["progress"],
-        }
-    if _get_clipseg_cache_path() is not None:
-        return {"status": "already_cached", "progress": 100}
-
-    thread = threading.Thread(target=_download_clipseg_background, daemon=True)
-    thread.start()
-    return {"status": "started", "progress": 0}
-
-
-@app.get("/api/engine/clipseg_local/download/progress")
-async def clipseg_download_progress():
-    """获取 CLIPSeg 模型下载进度"""
-    return dict(_CLIPSEG_DOWNLOAD_TASK)
-
-
-# ============================================================
-# CLIPSeg 依赖（torch + transformers）自动安装
-# ============================================================
-
-_CLIPSEG_DEPS_TASK: dict = {"running": False, "progress": 0, "error": "", "stage": ""}
-
-
-def _check_clipseg_deps_installed() -> bool:
-    """检查 CLIPSeg 依赖（torch + transformers）是否已安装"""
-    try:
-        import torch  # noqa: F401
-        import transformers  # noqa: F401
-        return True
-    except ImportError:
-        return False
-
-
-def _install_clipseg_deps_background():
-    """后台线程：安装 torch + transformers"""
-    import subprocess
-    import sys
-
-    _CLIPSEG_DEPS_TASK["running"] = True
-    _CLIPSEG_DEPS_TASK["progress"] = 0
-    _CLIPSEG_DEPS_TASK["error"] = ""
-    _CLIPSEG_DEPS_TASK["stage"] = "installing"
-
-    try:
-        # step 1: torch
-        _CLIPSEG_DEPS_TASK["stage"] = "正在安装 PyTorch（约 800MB）..."
-        _CLIPSEG_DEPS_TASK["progress"] = 10
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "torch",
-             "-i", "https://pypi.tuna.tsinghua.edu.cn/simple",
-             "--no-cache-dir"],
-            capture_output=True, text=True, timeout=600
-        )
-        if result.returncode != 0:
-            _CLIPSEG_DEPS_TASK["error"] = f"PyTorch 安装失败: {result.stderr[-200:]}"
-            return
-
-        _CLIPSEG_DEPS_TASK["progress"] = 55
-
-        # step 2: transformers
-        _CLIPSEG_DEPS_TASK["stage"] = "正在安装 transformers..."
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "transformers",
-             "-i", "https://pypi.tuna.tsinghua.edu.cn/simple",
-             "--no-cache-dir"],
-            capture_output=True, text=True, timeout=300
-        )
-        if result.returncode != 0:
-            _CLIPSEG_DEPS_TASK["error"] = f"transformers 安装失败: {result.stderr[-200:]}"
-            return
-
-        _CLIPSEG_DEPS_TASK["progress"] = 85
-        _CLIPSEG_DEPS_TASK["stage"] = "验证安装..."
-        import torch  # noqa: F401
-        import transformers  # noqa: F401
-        _CLIPSEG_DEPS_TASK["progress"] = 100
-        _CLIPSEG_DEPS_TASK["stage"] = "安装完成"
-
-    except ImportError:
-        _CLIPSEG_DEPS_TASK["error"] = "验证失败，请尝试手动安装"
-    except subprocess.TimeoutExpired:
-        _CLIPSEG_DEPS_TASK["error"] = "安装超时，请检查网络后重试"
-    except Exception as e:
-        _CLIPSEG_DEPS_TASK["error"] = str(e)
-    finally:
-        _CLIPSEG_DEPS_TASK["running"] = False
-
-
-@app.get("/api/engine/clipseg_local/deps-status")
-async def clipseg_deps_status():
-    """检查 CLIPSeg 依赖安装状态"""
-    installed = _check_clipseg_deps_installed()
-    return {
-        "engine_id": "clipseg_local",
-        "installed": installed,
-        **dict(_CLIPSEG_DEPS_TASK),
-    }
-
-
-@app.post("/api/engine/clipseg_local/install-deps")
-async def clipseg_install_deps():
-    """触发 CLIPSeg 依赖安装（torch + transformers）"""
-    if _check_clipseg_deps_installed():
-        return {"status": "already_installed", "progress": 100}
-    if _CLIPSEG_DEPS_TASK["running"]:
-        return {"status": "installing", "progress": _CLIPSEG_DEPS_TASK["progress"]}
-
-    thread = threading.Thread(target=_install_clipseg_deps_background, daemon=True)
-    thread.start()
-    return {"status": "started", "progress": 0, "stage": "正在安装 PyTorch（约 800MB）..."}
 
 
 @app.post("/api/upload")
@@ -483,21 +333,13 @@ async def remove_background_with_prompt(
 
     image_bytes = file_path.read_bytes()
 
-    # 为 CLIPSeg 准备 sensitivity 参数
-    clip_sens = max(0.0, min(1.0, sensitivity)) if engine_id == "clipseg_local" and sensitivity is not None else None
-
     try:
         engine_info = engine.__class__.info()
         if engine_info.type == "local":
             loop = asyncio.get_event_loop()
-            if clip_sens is not None:
-                result_bytes = await loop.run_in_executor(
-                    _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key, clip_sens)
-                )
-            else:
-                result_bytes = await loop.run_in_executor(
-                    _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key)
-                )
+            result_bytes = await loop.run_in_executor(
+                _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key)
+            )
         elif engine_id == "custom":
             result_bytes = await engine.remove_bg_with_prompt(
                 image_bytes, prompt, api_key, base_url=base_url or "", model_name=model_name or ""

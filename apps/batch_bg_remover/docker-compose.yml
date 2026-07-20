@@ -13,10 +13,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        # 是否安装 CLIPSeg 依赖（torch+transformers，约800MB）
-        # deploy.sh 会将选择写入 .env，下次重建自动沿用
-        INSTALL_CLIPSEG: "${INSTALL_CLIPSEG:-false}"
     container_name: batch-bg-remover
     ports:
       - "${PORT:-8001}:8001"
@@ -26,8 +22,8 @@ services:
       - ./data/outputs:/app/outputs
       # 持久化 rembg 模型缓存（避免每次重启重新下载）
       - ./data/.u2net:/root/.u2net
-      # 持久化 CLIPSeg / HuggingFace 模型缓存
-      - ./data/huggingface:/root/.cache/huggingface
+      # SAM 1 本地分割模型（手动放置 sam_vit_l_0b3195.pth）
+      - ./data/sam_models:/root/.cache/sam
       # 持久化代理配置（容器重启不丢失）
       - ./data/proxy:/app/backend/data
     environment:

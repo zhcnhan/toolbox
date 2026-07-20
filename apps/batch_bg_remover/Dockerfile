@@ -49,28 +49,6 @@ RUN echo "[Docker] Pre-caching rembg model..." && \
     python3 -c "from rembg.session_factory import new_session; new_session('u2net')" 2>/dev/null || \
     echo "[Docker] rembg model will be downloaded on first use"
 
-# CLIPSeg 引擎依赖（可选，体积大 ~800MB）
-# 默认不装。需要时用 --build-arg INSTALL_CLIPSEG=true 启用
-ARG INSTALL_CLIPSEG=false
-# 国内用户可设置 --build-arg HF_ENDPOINT=https://hf-mirror.com 加速模型下载
-ARG HF_ENDPOINT=""
-RUN if [ "$INSTALL_CLIPSEG" = "true" ]; then \
-        echo "[Docker] Installing CLIPSeg deps (torch + transformers)..."; \
-        pip install --no-cache-dir torch transformers && \
-        echo "[Docker] Pre-caching CLIPSeg model..."; \
-        HF_ENDPOINT="${HF_ENDPOINT:-https://huggingface.co}" \
-        python3 -c "\
-import os; \
-os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'; \
-print(f'[Docker] Downloading from: {os.environ.get(\"HF_ENDPOINT\", \"https://huggingface.co\")}'); \
-from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation; \
-CLIPSegProcessor.from_pretrained('CIDAS/clipseg-rd64-refined', local_files_only=False); \
-CLIPSegForImageSegmentation.from_pretrained('CIDAS/clipseg-rd64-refined', local_files_only=False)\
-"; \
-    else \
-        echo "[Docker] Skipping CLIPSeg deps (INSTALL_CLIPSEG=false)."; \
-    fi
-
 # 复制后端代码
 COPY backend/ /app/
 
@@ -78,7 +56,48 @@ COPY backend/ /app/
 COPY --from=frontend-builder /build/backend/static /app/static
 
 # 创建上传和输出目录
-RUN mkdir -p /app/uploads /app/outputs
+RUN mkdir -p /app/uploads /app/outputs /root/.cache/sam
+
+# SAM 1 本地分割模型（可选预下载）
+# 构建时通过 --build-arg DOWNLOAD_SAM=true 启用
+ARG DOWNLOAD_SAM=false
+RUN if [ "$DOWNLOAD_SAM" = "true" ]; then \
+        echo "[Docker] 下载 SAM 1 ViT-L 模型 (1.25GB)..."; \
+        pip install --no-cache-dir requests && \
+        python3 -c "
+import requests, sys
+url = 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth'
+mirrors = [
+    'https://ghproxy.net/{}',
+    'https://gh-proxy.com/{}',
+    'https://mirror.ghproxy.com/{}',
+    'https://github.moeyy.xyz/{}',
+    '{}',
+]
+for tmpl in mirrors:
+    u = tmpl.format(url)
+    try:
+        print(f'尝试: {u.split(\"/\")[2]}')
+        r = requests.get(u, stream=True, timeout=(30, 600))
+        r.raise_for_status()
+        total = int(r.headers.get('content-length', 0))
+        if total < 1_000_000_000:
+            print(f'文件太小: {total} bytes, 换下一个')
+            continue
+        with open('/root/.cache/sam/sam_vit_l_0b3195.pth', 'wb') as f:
+            for chunk in r.iter_content(1048576):
+                if chunk: f.write(chunk)
+        size = __import__('os').path.getsize('/root/.cache/sam/sam_vit_l_0b3195.pth')
+        print(f'✅ 下载完成: {size/1e6:.0f}MB')
+        sys.exit(0)
+    except Exception as e:
+        print(f'失败: {e}')
+        continue
+print('⚠ 所有镜像失败，可在首次使用时网页触发下载')
+"; \
+    else \
+        echo "[Docker] SAM 模型未预下载 (设置 DOWNLOAD_SAM=true 启用)"; \
+    fi
 
 # 环境变量
 ENV PORT=8001

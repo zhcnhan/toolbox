@@ -31,7 +31,7 @@
 - **后端**：Python 3.9+ / FastAPI / uvicorn
 - **前端**：React / Vite / Tailwind
 - **部署**：Docker / Docker Compose / nginx / systemd
-- **云服务**：硅基流动、remove.bg、擦个图、Replicate、Google Gemini
+- **云服务**：硅基流动、remove.bg、擦个图、Google Gemini
 
 ---
 
@@ -41,20 +41,66 @@
 
 所有引擎继承自 `BaseEngine`，通过装饰器 `@register_engine("id")` 注册，`engine_registry.py` 自动发现 `engines/` 目录下匹配 `*_engine.py` / `*_local.py` / `*_cloud.py` 的文件。
 
-**7 个引擎一览：**
+**8 个引擎一览：**
 
 | ID | 名称 | 类型 | 自动抠图 | 提示词分割 | 需要 Key | 价格 |
 |----|------|------|:-------:|:---------:|:--------:|------|
 | `rembg_local` | rembg | 本地 | ✅ | ❌ | 否 | 免费 |
-| `clipseg_local` | CLIPSeg | 本地 | ❌ | ✅ | 否 | 免费（需 ~1.5GB 模型） |
+| `sam_local` | SAM 1 ViT-L | 本地 | ✅ | ✅ | 硅基流动 API Key | 按量计费 |
+| `icon_bg` | 图标抠图 | 本地 | ✅ | ❌ | 否 | 免费 |
 | `kimi` | Kimi (多边形坐标) | 云端 | ❌ | ✅ | 硅基流动 API Key | 按量计费 |
 | `gemini_mask` | Gemini Mask | 云端 | ❌ | ✅ | Google API Key | Free Tier |
 | `removebg` | remove.bg | 云端 | ✅ | ❌ | remove.bg API Key | 50张/月免费 |
 | `cagetu` | 擦个图 | 云端 | ✅ | ❌ | API Key | 0.1元/次 |
-| `replicate` | Replicate | 云端 | ✅ | ✅ | Replicate Token | ~$0.001/秒 |
 | `custom` | 自定义 | 云端 | ✅ | ✅ | 用户自填 | 取决于服务商 |
 
-### 2.2 Kimi 引擎（重点！）
+### 2.2 SAM 1 ViT-L 引擎
+
+**实现位置**：`apps/batch_bg_remover/backend/engines/sam_local_engine.py`
+
+**管线**：
+```
+用户图片 + 提示词 → Qwen3-VL-32B (硅基流动) Box 定位 → SAM 1 ViT-L (本地) 分割 → 透明 PNG
+```
+
+**模型管理（关键改进！）**：
+- 模型文件：`sam_vit_l_0b3195.pth`（1.25GB）
+- 默认下载路径：`~/.cache/sam/sam_vit_l_0b3195.pth`
+- **后端 API**（`main.py` 中）：
+  - `GET /api/engine/sam_local/status` — 检查模型是否存在 + 下载任务状态
+  - `POST /api/engine/sam_local/download` — 触发后台下载
+  - `GET /api/engine/sam_local/download/progress` — 获取实时进度
+- **自动下载**：引擎首次调用时若模型不存在，前端弹出下载对话框
+- **镜像轮询**（`_download_sam_model_background`）：ghproxy.net → gh-proxy.com → mirror.ghproxy.com → github.moeyy.xyz → 直连
+- **校验**：下载完成后检查文件大小 ≥ 1GB，否则重试下一个镜像
+
+**SAM 分割策略**：
+1. 单 mask 模式 + box + 角点 negative 提示 → 快速出结果
+2. 可疑结果（大框 + 低分/框内前景少）→ 多候选兜底
+3. 最佳 mask 主要在框外 → 翻转
+4. 去除面积 < 1% 的孤立碎片
+
+**预设提示词**（自动抠图用 `_PRESET_PROMPTS` 中的 key）：
+- 默认"画面中的主体"
+- 针对 `icon_bg` 等场景有专用预设
+
+#### API 配置
+
+| 项目 | 值 |
+|------|-----|
+| VL 模型 | `Qwen/Qwen3-VL-32B-Instruct` |
+| 端点 | `https://api.siliconflow.cn/v1/chat/completions` |
+| 超时 | 300s（5分钟），自动重试 3 次 |
+| 温度 | 0.1 |
+| max_tokens | 512 |
+
+#### 预处理优化
+
+- `_resize_for_api`：API 图片自动缩放到 800px 以内
+- `_box_to_pixels`：普通框外扩 12%，超大框内缩防全选
+- `_keep_large_components`：scipy 连通域过滤，去除微小碎片
+
+### 2.3 Kimi 引擎（重点！）
 
 **实现位置**：`apps/batch_bg_remover/backend/engines/kimi_engine.py`
 
@@ -105,22 +151,6 @@
 - `gemini_mask_engine.py` — `_POLYGON_PROMPT` 和 `_MASK_PROMPT`
 - `custom_engine.py` — `remove_bg` 和 `remove_bg_with_prompt` 中的 prompt
 
-### 2.3 CLIPSeg 引擎（本地）
-
-**实现位置**：`apps/batch_bg_remover/backend/engines/clipseg_local_engine.py`
-
-#### 🌟 踩坑历史
-
-| # | 问题 | 原因 | 修复 |
-|---|------|------|------|
-| 1 | 安装依赖后自动生图报 `Could not import CLIPSegProcessor` | transformers 5.x 中 CLIPSegProcessor 的导入路径变了 | `try: from transformers import CLIPSegProcessor; except: from transformers.models.clipseg.processing_clipseg import CLIPSegProcessor` |
-| 2 | 下载模型报 `snapshot_download() got an unexpected keyword argument 'callback'` | huggingface_hub 新版移除了 callback 参数 | 直接删除 callback 参数，进度简化为固定 50% |
-
-**模型下载**：
-- 模型 ID：`CIDAS/clipseg-rd64-refined`（~1.5GB）
-- 下载通过 `main.py` 的 `/api/engine/clipseg_local/download` 路由触发
-- 缓存检查：`/api/engine/clipseg_local/status`
-
 ### 2.4 速率限制器
 
 **位置**：`apps/batch_bg_remover/backend/rate_limiter.py`
@@ -151,11 +181,9 @@
 | POST | `/api/proxy/test` | 测试代理连通性 |
 | GET | `/api/engines` | 列出所有引擎 |
 | POST | `/api/engine/gemini/usage` | Gemini Key 今日用量 |
-| GET | `/api/engine/clipseg_local/status` | CLIPSeg 缓存状态 |
-| POST | `/api/engine/clipseg_local/download` | 触发模型下载 |
-| GET | `/api/engine/clipseg_local/download/progress` | 下载进度 |
-| GET | `/api/engine/clipseg_local/deps-status` | 依赖状态 |
-| POST | `/api/engine/clipseg_local/install-deps` | 安装依赖 |
+| GET | `/api/engine/sam_local/status` | SAM 模型缓存状态 + 下载进度 |
+| POST | `/api/engine/sam_local/download` | 触发 SAM 模型下载 |
+| GET | `/api/engine/sam_local/download/progress` | SAM 下载实时进度 |
 | POST | `/api/upload` | 上传图片 |
 | POST | `/api/remove-bg` | 自动抠图 |
 | POST | `/api/remove-bg-prompt` | 提示词抠图 |
@@ -354,8 +382,10 @@ cd cli-tools/git-mirror && python -m git_mirror sync toolbox
 | 2026-07 | RGBA→JPEG 崩溃修复：`convert("RGB")` | `kimi_engine.py` |
 | 2026-07 | Kinect滑块 100→500 | `SettingsPanel.jsx`, `main.py`, `App.jsx` |
 | 2026-07 | 提示词通用优化：所有 polygon/mask 引擎 | `kimi_engine.py`, `gemini_mask_engine.py`, `custom_engine.py` |
-| 2026-07 | CLIPSeg 导入兼容 `transformers 5.x` | `clipseg_local_engine.py` |
-| 2026-07 | CLIPSeg 下载 `callback` 参数移除 | `main.py` |
 | 2026-07 | 提取公共掩膜处理到 `matting.py`，Gemini Mask 支持 `num_points` | `matting.py`, `gemini_mask_engine.py`, `kimi_engine.py`, `main.py` |
 | 2026-07 | macOS 部署修复：启动器改为生产模式单进程、添加国内镜像源、补充安全弹窗说明 | `make-mac-app.sh`, `batch-bg-mac.sh`, `MAC.md` |
 | 2026-07 | Kimi 间歇性无效 JSON：添加 3 次自动重试 + 花括号深度解析 + reasoning_content 兜底 | `kimi_engine.py` |
+| 2026-07 | 移除 Replicate 和 CLIPSeg 引擎（体积大/云端依赖/不常用），清理全部文档和部署配置 | 12 个文件 |
+| 2026-07 | SAM 引擎添加自动下载：后台线程 + 5 镜像轮询 + 1GB 校验 + Web 进度对话框 | `sam_local_engine.py`, `main.py`, `App.jsx`, `api.js` |
+| 2026-07 | SAM 模型下载集成到部署：Dockerfile build arg、deploy.sh 交互选择、make-mac-app.sh 首次安装 | `Dockerfile`, `deploy.sh`, `make-mac-app.sh` |
+| 2026-07 | SAM 模型不存在时 `FileNotFoundError` → `RuntimeError`（500→400 前端友好）；下载失败对话框不关闭+重试按钮 | `sam_local_engine.py`, `App.jsx` |

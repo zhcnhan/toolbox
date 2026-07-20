@@ -7,11 +7,11 @@
 ## 功能
 
 - 🖥️ **本地抠图**：rembg (U2-Net)，CPU 即可运行，无需联网，无需 API Key
+- 🎯 **SAM 1 ViT-L (本地)** ✨ — Qwen3-VL 智能定位 + 本地 SAM 分割，支持文本提示选取特定物体
+- 🖼️ **图标抠图 (本地)** ✨ — 颜色距离法自动去背景，适用于纯色/渐变背景的 UI 图标
 - ✂️ **提示词修正**：自动抠图不满意？输入文本提示词（如"左边的猫"）重新选取主体
-- 🧠 **Gemini Mask (本地切割)** ✨ — 利用 Gemini 视觉定位物体 → 本地保留原图分辨率抠图
+- 🧠 **Gemini Mask (本地切割)** — 利用 Gemini 视觉定位物体 → 本地保留原图分辨率抠图
 - 🎚️ **两种输出模式**：「多边形坐标」（更省 Token）和「掩膜 PNG」（更精确，需绑卡）
-- 🎚️ **CLIPSeg 灵敏度滑块** — 用户自由调节遮罩力度
-- 📦 **自动安装依赖**：选择 CLIPSeg 时自动检测 torch，缺失时后台安装 + 进度提示
 - 🔌 **插件式架构**：新增引擎只需写一个 `*_engine.py` 文件，自动发现注册
 - 📦 **批量处理**：一次拖入几十张图，逐张处理
 - 💾 **一键打包**：所有结果打包 ZIP 下载
@@ -27,12 +27,12 @@
 | 引擎 | 类型 | 自动抠图 | 提示词分割 | 需要 Key | 价格 |
 |------|------|:-------:|:---------:|:--------:|------|
 | **rembg** | 本地 | ✅ | ❌ | 否 | 免费 |
-| **CLIPSeg** | 本地 | ❌ | ✅ | 否 | 免费（可选装 torch） |
+| **SAM 1 ViT-L** 🆕 | 本地 | ✅ | ✅ | [获取](https://cloud.siliconflow.cn) | 硅基流动按量计费 |
+| **图标抠图** 🆕 | 本地 | ✅ | ❌ | 否 | 免费 |
 | **Kimi (多边形坐标)** ✨ | 云端坐标 | ❌ | ✅ | [获取](https://cloud.siliconflow.cn) | 硅基流动按量计费 |
 | **Gemini Mask** ✨ | 云端坐标 | ❌ | ✅ | [获取](https://aistudio.google.com/apikey) | Free Tier 有免费额度 |
 | **remove.bg** | 云端 | ✅ | ❌ | [获取](https://www.remove.bg/api) | 50张/月免费，$0.09/张 |
 | **擦个图** | 云端 | ✅ | ❌ | [获取](https://cagetu.com) | 0.1元/次 |
-| **Replicate** | 云端 | ✅ | ✅ | [获取](https://replicate.com/account/api-tokens) | ~$0.001/秒 |
 | **自定义** | 云端 | ✅ | ✅ | 用户自填 | 取决于服务商 |
 
 > **Gemini Mask 模式说明**：默认使用「多边形坐标」模式（`gemini-3.1-flash-lite`，低 Token 消耗），
@@ -124,15 +124,12 @@ chmod +x deploy.sh && ./deploy.sh
 chmod +x deploy.sh && ./deploy.sh
 ```
 
-交互式引导，自动检测环境、可选 CLIPSeg 引擎、可选国内镜像，选择会被记录到 `.env`，后续重建自动沿用。
+交互式引导，自动检测环境，选择会被记录到 `.env`，后续重建自动沿用。
 
 #### 方式二：手动 Docker
 
 ```bash
 docker compose build && docker compose up -d
-
-# 如需启用 CLIPSeg 提示词分割引擎
-docker compose build --build-arg INSTALL_CLIPSEG=true && docker compose up -d
 ```
 
 详见 [DEPLOY.md](./DEPLOY.md)，支持 4 种部署方式：
@@ -158,12 +155,12 @@ batch_bg_remover/
 │   ├── engines/
 │   │   ├── __init__.py
 │   │   ├── rembg_local_engine.py    # rembg 本地引擎
-│   │   ├── clipseg_local_engine.py  # CLIPSeg 本地引擎
+│   │   ├── sam_local_engine.py      # 🆕 SAM 1 ViT-L 本地分割引擎
+│   │   ├── icon_bg_engine.py        # 🆕 UI 图标背景去除引擎（颜色距离法）
 │   │   ├── gemini_mask_engine.py    # ✨ Gemini Mask 引擎（双模式）
 │   │   ├── kimi_engine.py           # ✨ Kimi 多边形坐标引擎（Catmull-Rom 插值）
 │   │   ├── removebg_engine.py       # remove.bg 云端引擎
 │   │   ├── cagetu_engine.py         # 擦个图云端引擎
-│   │   ├── replicate_engine.py      # Replicate 云端引擎
 │   │   └── custom_engine.py         # 自定义引擎
 │   ├── static/                      # 前端构建产物（自动生成）
 │   ├── uploads/                     # 上传文件（自动创建）
@@ -244,14 +241,10 @@ class MyEngine(BaseEngine):
 | `GET` | `/api/engines` | 列出所有可用引擎 |
 | `POST` | `/api/upload` | 批量上传图片 |
 | `POST` | `/api/remove-bg` | 自动抠图 |
-| `POST` | `/api/remove-bg-prompt` | 提示词抠图（可选 `sensitivity`、`mask_mode`） |
+| `POST` | `/api/remove-bg-prompt` | 提示词抠图（可选 `mask_mode`） |
 | `GET` | `/api/proxy` | 获取代理配置 |
 | `PUT` | `/api/proxy` | 更新代理配置（支持认证） |
 | `POST` | `/api/proxy/test` | 测试代理连通性（测试 4 个网站） |
-| `GET` | `/api/engine/clipseg_local/status` | 检查 CLIPSeg 模型缓存状态 |
-| `POST` | `/api/engine/clipseg_local/download` | 触发 CLIPSeg 模型下载 |
-| `GET` | `/api/engine/clipseg_local/deps-status` | 检查 CLIPSeg 依赖（torch）安装状态 |
-| `POST` | `/api/engine/clipseg_local/install-deps` | 触发 CLIPSeg 依赖安装 |
 | `POST` | `/api/engine/gemini/usage` | 查询 API Key 的今日 Gemini 用量 |
 | `GET` | `/api/download/{result_id}` | 下载单张结果 |
 | `GET` | `/api/download-zip?result_ids=...` | 打包下载 |
@@ -266,14 +259,34 @@ API 文档：启动后访问 `http://localhost:8001/docs`（Swagger UI）
 |----|------|
 | 后端 | FastAPI + Python 3.10+ |
 | 本地抠图 | rembg (U2-Net, ONNX Runtime) |
-| 本地分割 | CLIPSeg (HuggingFace Transformers) |
+| 本地 SAM 分割 🆕 | SAM 1 ViT-L + Qwen3-VL Box 定位 |
+| 图标抠图 🆕 | 颜色距离法（边缘采样 + smoothstep + 高斯平滑） |
 | 云端坐标分割 | Gemini 3.1 Flash Lite（polygon / mask 双模式） |
-| 云端 API | requests (remove.bg / 擦个图 / Replicate) |
+| 云端 API | requests (remove.bg / 擦个图) |
 | 前端 | React 18 + Vite + Tailwind CSS + Framer Motion |
 | 图片处理 | Pillow |
 | 代理测试 | urllib (Google / Baidu / GitHub / Bing) |
 | 速率控制 | 按 API Key 自适应 RPM（5~30/min） |
 | 部署 | Docker / systemd / Nginx |
+
+---
+
+## 图标抠图算法简介 🆕
+
+图标抠图引擎使用**颜色距离法**，适用于纯色或渐变背景的 UI 素材：
+
+```
+1. 边缘采样 → 采样图片四边的像素，取中位数作为背景色
+2. 颜色距离 → 计算每个像素到背景色的 RGB 欧几里得距离
+3. smoothstep  → 将距离映射为 alpha（接近背景→透明，远离→不透明）
+4. 高斯平滑 → 轻微模糊 alpha 通道，消除锯齿
+5. 去噪     → 去除面积 <0.3% 的零星噪点
+```
+
+比 SAM 分割更适合 UI 图标的原因：
+- 不需要 AI 模型，0.2s 完成，极快
+- 天然保留半透明效果（光晕、阴影、渐变）
+- 不会被低对比度边缘误导（SAM 在黑白金这类场景容易失败）
 
 ---
 

@@ -150,4 +150,4 @@ class RembgLocalEngine(BaseEngine):
         self, image_bytes: bytes, prompt: str, api_key: str | None = None
     ) -> bytes:
         """rembg 不支持提示词分割，抛出异常"""
-        raise NotImplementedError("rembg 不支持提示词选取主体，请使用 CLIPSeg 或云端引擎")
+        raise NotImplementedError("rembg 不支持提示词选取主体，请使用 SAM 本地或云端引擎")

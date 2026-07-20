@@ -117,42 +117,8 @@ if [ ! -d "backend/venv" ] || [ ! -d "frontend/node_modules" ] || [ ! -d "backen
     if [ "$U2NET_OK" -eq 0 ]; then
       echo "  ⚠ 所有镜像均失败，首次抠图时会自动重试"
     fi
-
-    # CLIPSeg 模型（~1.5GB），询问是否预下载
-    echo ""
-    echo "→ CLIPSeg 提示词分割引擎需要额外下载模型（~1.5GB）"
-    echo "  如果现在不下载，在网页上首次使用时会自动下载（可能较慢）"
-    read -p "  是否现在下载（推荐）？[Y/n] " dl_clipseg
-    if [[ ! "$dl_clipseg" =~ ^[Nn]$ ]]; then
-      echo "→ 下载 CLIPSeg 模型中..."
-      pip install -q huggingface-hub -i https://pypi.tuna.tsinghua.edu.cn/simple 2>/dev/null
-      for HF_MIRROR in "https://hf-mirror.com" "https://huggingface.co"; do
-        echo "  尝试镜像: $HF_MIRROR"
-        export HF_ENDPOINT="$HF_MIRROR"
-        "$BASE/backend/venv/bin/python3" -c "
-from huggingface_hub import snapshot_download
-import os
-os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
-os.environ['HF_ENDPOINT'] = '$HF_MIRROR'
-print('正在下载 CLIPSeg 模型（CIDAS/clipseg-rd64-refined）...')
-snapshot_download('CIDAS/clipseg-rd64-refined', max_retries=2)
-print('✅ CLIPSeg 模型下载完成')
-" 2>&1 && { CLIPSEG_OK=1; break; } || echo "  ⚠ 镜像 $HF_MIRROR 失败，换下一个"
-      done
-      if [ "${CLIPSEG_OK:-0}" -eq 0 ]; then
-        echo "  ⚠ 所有镜像都失败，首次使用时自动重试"
-      fi
-    else
-      echo "  已跳过，首次使用 CLIPSeg 时会自动下载"
-    fi
   else
     source backend/venv/bin/activate
-  fi
-
-  # 确保 huggingface_hub 已安装
-  if ! "$BASE/backend/venv/bin/python3" -c "import huggingface_hub" 2>/dev/null; then
-    echo "→ 安装 huggingface_hub..."
-    pip install huggingface-hub -q -i https://pypi.tuna.tsinghua.edu.cn/simple
   fi
 
   # 前端依赖
@@ -165,6 +131,48 @@ print('✅ CLIPSeg 模型下载完成')
   if [ ! -d "backend/static" ] || [ ! -f "backend/static/index.html" ]; then
     echo "[4/4] 构建前端静态文件..."
     (cd frontend && npm run build --silent)
+  fi
+
+  # SAM 模型（~1.25GB），询问是否预下载
+  SAM_PATH="$HOME/.cache/sam/sam_vit_l_0b3195.pth"
+  if [ ! -f "$SAM_PATH" ]; then
+    echo ""
+    echo "→ SAM 1 ViT-L 模型（~1.25GB），用于高精度本地 AI 抠图"
+    echo "  如果现在不下载，在网页上首次使用 SAM 引擎时会自动下载（较慢）"
+    read -p "  是否现在下载（推荐）？[Y/n] " dl_sam
+    if [[ ! "$dl_sam" =~ ^[Nn]$ ]]; then
+      echo "→ 下载 SAM 模型中..."
+      mkdir -p "$HOME/.cache/sam"
+      SAM_URL="https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth"
+      SAM_MIRRORS=(
+        "https://ghproxy.net/$SAM_URL"
+        "https://gh-proxy.com/$SAM_URL"
+        "https://mirror.ghproxy.com/$SAM_URL"
+        "https://github.moeyy.xyz/$SAM_URL"
+        "$SAM_URL"
+      )
+      SAM_OK=0
+      for url in "${SAM_MIRRORS[@]}"; do
+        HOST=$(echo "$url" | sed 's|https://||' | cut -d/ -f1)
+        echo "  尝试 ($HOST)... 超时 10 分钟"
+        curl -L -o "$SAM_PATH" "$url" \
+          --connect-timeout 30 --max-time 600 --progress-bar 2>&1 | \
+          grep -E '[0-9]+\.[0-9]+[kMG]?B|^  %' || true
+        SIZE=$(stat -f%z "$SAM_PATH" 2>/dev/null || echo 0)
+        if [ "$SIZE" -gt 1000000000 ]; then
+          SAM_OK=1
+          echo "  ✅ 下载完成 ($(echo "scale=1; $SIZE/1024/1024" | bc)MB)"
+          break
+        fi
+        rm -f "$SAM_PATH"
+        echo "  ⚠ 失败 (大小不符: $SIZE bytes)"
+      done
+      if [ "$SAM_OK" -eq 0 ]; then
+        echo "  ⚠ 所有镜像均失败，首次使用 SAM 引擎时网页会触发下载"
+      fi
+    else
+      echo "  已跳过，首次使用 SAM 引擎时网页会自动下载"
+    fi
   fi
 
   cd "$BASE"
@@ -182,9 +190,6 @@ if [ "$FIRST_RUN" = false ]; then
   echo "========================================"
   source backend/venv/bin/activate
 fi
-
-# 设置 HuggingFace 国内镜像（CLIPSeg 下载模型时走这个源）
-export HF_ENDPOINT=https://hf-mirror.com
 
 # 生产模式：单进程，FastAPI 直接服务前端静态文件
 echo "  服务地址: http://localhost:8001"
