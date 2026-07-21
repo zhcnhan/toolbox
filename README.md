@@ -109,19 +109,19 @@ python run.py
 
 ### Git Mirror
 
-通用 Git 仓库双向镜像同步工具。在任意两个 Git remote（如 Gitee ↔ GitHub）之间同步代码，支持自动凭据管理。
+通用 Git 仓库双向同步工具。在任意两个 Git remote（如 Gitee ↔ GitHub）之间同步代码（所有分支 + 标签），支持自动凭据管理。
 
 ```bash
 cd cli-tools/git-mirror
 pip install -e .
 
 git-mirror add <name> -r gitee=<url> -r github=<url>
-git-mirror sync <name> --from gitee --to github
+git-mirror sync <name>
 git-mirror sync --all
 ```
 
 **功能亮点：**
-- 🔄 **双向同步** — 任意两个 remote 之间的全量镜像
+- 🔄 **双向同步** — 任意两个 remote 之间的全量同步（分支 + 标签）
 - 🔐 **自动凭据** — push 失败时交互式询问 token，保存复用
 - 📦 **多仓库** — 同时管理多个仓库的同步规则
 - ⏰ **定时运行** — 配合 crontab 实现自动同步

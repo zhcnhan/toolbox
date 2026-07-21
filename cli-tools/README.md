@@ -6,7 +6,7 @@
 
 | 工具 | 说明 |
 |------|------|
-| [git-mirror](./git-mirror/) | Git 仓库双向镜像同步 — 在任意两个 remote 之间同步代码 |
+| [git-mirror](./git-mirror/) | Git 仓库双向同步 — 在任意两个 remote 之间同步代码（分支 + 标签） |
 
 ## 约定
 

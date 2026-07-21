@@ -23,6 +23,7 @@ from engine_base import BaseEngine, EngineInfo
 logger = logging.getLogger(__name__)
 
 _ENGINES: dict[str, type[BaseEngine]] = {}
+_ENGINE_INSTANCES: dict[str, BaseEngine] = {}  # 全局单例缓存
 _ENGINES_DIR = Path(__file__).parent / "engines"
 
 
@@ -68,11 +69,13 @@ def auto_discover_engines():
 
 
 def get_engine(engine_id: str) -> BaseEngine | None:
-    """按 id 获取引擎实例"""
+    """按 id 获取引擎实例（全局单例，避免重复加载模型）"""
     cls = _ENGINES.get(engine_id)
     if cls is None:
         return None
-    return cls()
+    if engine_id not in _ENGINE_INSTANCES:
+        _ENGINE_INSTANCES[engine_id] = cls()
+    return _ENGINE_INSTANCES[engine_id]
 
 
 def list_engines() -> list[EngineInfo]:

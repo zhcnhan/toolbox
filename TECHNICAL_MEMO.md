@@ -54,6 +54,26 @@
 | `cagetu` | 擦个图 | 云端 | ✅ | ❌ | API Key | 0.1元/次 |
 | `custom` | 自定义 | 云端 | ✅ | ✅ | 用户自填 | 取决于服务商 |
 
+### 2.1.5 macOS 部署注意事项 ⚠️
+
+**位置**：`apps/batch_bg_remover/make-mac-app.sh`（生成 `.command` 启动器）
+
+| 问题 | 现象 | 原因 | 修复 |
+|------|------|------|------|
+| `.command` 双击不等待输入 | SAM 下载询问跳过，不等 Y/N | macOS Finder 双击 `.command` 时 stdin 未挂载，`read -p` 无效 | 改用 `osascript` macOS 原生弹窗 |
+| SAM 弹窗不出来 | 弹窗完全不显示 | 旧模型文件 `~/.cache/sam/sam_vit_l_0b3195.pth` 还在，`if [ ! -f "$SAM_PATH" ]` 为假跳过整个块 | 改为先检测 Python 包是否 importable，再检查模型文件 |
+| `onnxruntime-silicon` 装完 rembg 报错"缺少后端" | rembg 无法使用 | 先 `uninstall onnxruntime` 再装 `onnxruntime-silicon`，安装失败后 onnxruntime 也没了 | 不卸直接装，装不上也不影响 |
+| `segment-anything` 提示"未安装"但明明装过 | SAM 不可用 | **缺 `torchvision`**。`pip install segment-anything` 只拉 `torch` 不拉 `torchvision`，`segment_anything.predictor` 内部 import `torchvision.transforms` 炸了 | `pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu` 一起装 |
+| pip 静默安装后无反馈 | 装了没装不知道 | `-q` 标志 + `2>&1 \| tail -1` 截掉了 pip 原生进度条 | 去掉 `-q` 和 `tail`，pip 自带进度条（显示 MB/s + ETA） |
+| `&&`/`||` 链式判断吞错误 | torch 装完 segment-anything 失败看不到 | `cmd1 && cmd2 && cmd3 \|\| echo fail` 中任何命令 exit code 意外就中断 | 改为 `if/else` 每步独立判断 |
+| Finder 显示 toolbox 文件夹 | 桌面有两个东西嫌乱 | 无 | 加 `chflags hidden` 自动隐藏 |
+| torch 太大安装慢 | 干等没反馈 | pip 输出被截 | pip 默认进度条自带网速和倒计时 |
+
+**Apple Silicon 加速**：
+- M1/M2/M3/M4 可装 `onnxruntime-silicon` 替代 `onnxruntime`，推理速度翻倍
+- 清华镜像可能没有 `onnxruntime-silicon`，脚本先试官方源再试镜像再兜底
+- `torch` + `torchvision` 从 PyTorch 官方源装（`--index-url https://download.pytorch.org/whl/cpu`）
+
 ### 2.2 SAM 1 ViT-L 引擎
 
 **实现位置**：`apps/batch_bg_remover/backend/engines/sam_local_engine.py`
@@ -208,15 +228,25 @@
 ### 4.1 部署三步走
 
 ```
-# Step 1: 本地推送到 GitHub
+# Step 1: 本地推送到 GitHub（所有分支）
 git push origin main
+git push origin friend  # 如果有 friend 分支
 
-# Step 2: GitHub → Gitee 自动同步
-cd cli-tools/git-mirror && python -m git_mirror sync toolbox
+# Step 2: GitHub → Gitee 自动同步（所有分支 + 标签）
+python -m git_mirror.cli sync toolbox
+# 或：cd cli-tools/git-mirror && python -m git_mirror sync toolbox
 
 # Step 3: SSH 到服务器拉取
 ssh root@server 'cd /opt/toolbox && git pull'
 ```
+
+#### git-mirror 已知陷阱
+
+| 问题 | 说明 |
+|------|------|
+| `push --mirror` 被 Gitee 拒绝 | bare repo 里的 remote tracking refs（`github/main`）也会被推送，Gitee 拒绝更新 hidden ref。**已修复**：改 `push --all + --tags` |
+| 凭据认证失败 | bare repo 没有 cached credential，首次推送需要交互式输入。已在 `_push_all` 中增加凭据管理 |
+| `pip install -e .` 后 `git-mirror` 命令找不到 | Windows PowerShell 下 entry point 可能不在 PATH，可用 `python -m git_mirror.cli` 代替 |
 
 ### 4.2 硬性禁止
 
@@ -314,6 +344,37 @@ Windows 默认 console 编码是 GBK。包含 emoji/unicode 字符的 Python 输
 
 如果装的是 Python 3.14（太新），某些包（如 `tokenizers`）可能需要编译，编译工具链不全就装不上。建议用 Python 3.12。
 
+### 5.2 macOS 开发注意事项
+
+| 注意点 | 说明 |
+|--------|------|
+| Python 版本 | macOS 自带 Python 通常是 2.x 或 3.9，脚本会自动下载安装 3.12 |
+| 路径格式 | 全部使用 `pathlib.Path`，跨平台兼容。**没有** Windows 特有的 `C:\` 硬编码 |
+| 子进程 | 全部使用 `sys.executable`（当前 Python 解释器路径），没有 Windows-only 的 `cmd.exe` 调用 |
+| 编码 | 全部 `utf-8`，无 `gbk/cp936` 依赖 |
+| 多进程 | macOS 默认事件循环 `SelectorEventLoop` 兼容，代码中无 `ProactorEventLoop` 依赖 |
+| 字体 | 仅在 `tests/` 调试脚本中有 Windows 字体路径（`C:/Windows/Fonts/`），生产代码无此问题 |
+| SAM 模型路径 | `~/.cache/sam/sam_vit_l_0b3195.pth`（跨平台） |
+| rembg 模型路径 | `~/.u2net/u2net.onnx`（跨平台） |
+| 启动器 | `.command` 文件 + `open http://localhost:8001`（macOS 特有） |
+| Apple Silicon | `onnxruntime-silicon` 可用；torch 需从 `--index-url https://download.pytorch.org/whl/cpu` 装；**必须同时装 torchvision** |
+
+### 5.3 照片融合/差异分析（附注）
+
+本会话中完成了一套照片像素级差异分析 + 光流变形 + 人脸特征点 Delaunay 变形的工作流：
+
+**差异分析**：
+- 三张图（原片/身材好/脸好）逐像素 RGB 差异、LAB 色彩空间对比、SSIM 结构相似性
+- 鬼影检测（梯度差 + 色差双阈值）、Laplacian 鬼影、频域高频能量比
+- 分区域（脸/身体/腿部/背景）差异统计
+
+**融合技术**（从原片无损恢复修图版效果）：
+- Farneback 前后向光流 + 一致性检查 + 多尺度细化
+- InsightFace 106 特征点检测 → Delaunay 三角网格 → 仿射变形
+- **全部在 LAB L* 通道处理，a*/b* 完全不动**，避免修图导致色偏
+- 亮度补偿使用双边滤波边缘保持 + 椭圆面部掩码
+- 最终输出 656KB 无损 PNG，PSNR 42.3dB，SSIM 0.9815
+
 ### 5.2 API Key 管理
 
 当前所有 API Key 由用户通过前端 Settings 面板填写，代码中**不硬编码任何密钥**。
@@ -393,3 +454,26 @@ cd cli-tools/git-mirror && python -m git_mirror sync toolbox
 | 2026-07 | SAM 模型下载集成到部署：Dockerfile build arg、deploy.sh 交互选择、make-mac-app.sh 首次安装 | `Dockerfile`, `deploy.sh`, `make-mac-app.sh` |
 | 2026-07 | SAM 模型不存在时 `FileNotFoundError` → `RuntimeError`（500→400 前端友好）；下载失败对话框不关闭+重试按钮 | `sam_local_engine.py`, `App.jsx` |
 | 2026-07 | 上传后直接显示原图预览（`GET /api/original/{file_id}`），替代「等待处理」文字占位 | `main.py`, `ImageGrid.jsx`, `App.jsx` |
+| 2026-07 | **git-mirror 推送被 Gitee 拒绝**：`push --mirror` 会把 bare repo 里的 remote tracking refs（`github/main`、`gitee/main`）一并推送，Gitee 拒绝更新 hidden ref。改为 `push --all + --tags`，只推真实分支和标签 | `sync.py` |
+| 2026-07 | **SAM 类型注解导致导入崩溃**：`def _get_predictor() -> SamPredictor` 在导入时求值，而 `SamPredictor` 的 import 在 `try/except` 内，若 segment-anything 未安装则 `NameError`。改为 `-> "SamPredictor"`（字符串 forward reference）| `sam_local_engine.py` |
+| 2026-07 | **main.py 硬 import SAM 引擎**：`from engines.sam_local_engine import get_sam_status, trigger_sam_download` 在模块顶层，SAM 一炸整个程序起不来。改为 `try/except` + 条件注册路由 | `main.py` |
+| 2026-07 | **并发崩溃全面修复**：`ThreadPoolExecutor(max_workers=2)` 过小 + 云端引擎 `requests.post` 阻塞事件循环 + 无超时 + 取消后线程池容量永久减少 + 输出文件永不清理 + 速率限制器 `_trackers` 无限增长 | 见下方详细记录 |
+
+### 并发修复详细记录（2026-07）
+
+| # | 问题 | 根因 | 修复 | 涉及文件 |
+|---|------|------|------|---------|
+| 1 | 多个请求只有最后一个处理 | `ThreadPoolExecutor(max_workers=2)`，第 3 个永久排队 | `max_workers=8`，命名线程 `bg_remover` | `main.py:73` |
+| 2 | 页面越来越卡（内存泄漏） | `get_engine()` 每次 `cls()` 新实例，rembg 每次加载 ~176MB session | 全局 `_ENGINE_INSTANCES` 缓存单例 | `engine_registry.py:70-75` |
+| 3 | 一个慢用户阻塞所有人 | cloud 引擎直接 `await` 在事件循环中同步 `requests.post()` | 所有引擎统一走 `run_in_executor` + 线程池 | `main.py:381-391` |
+| 4 | 取消后程序半崩溃 | `CancelledError` 炸线程，worker 永久减少 | `_run_sync` 中 `try/except CancelledError` 静默退出 | `main.py:164-166` |
+| 5 | 无超时保护 | 卡住的任务永久占用 worker | `asyncio.wait_for(future, timeout=600)` | `main.py:445` |
+| 6 | 输出文件堆积 | uploads/outputs 永不清理 | 后台 `_cleanup_old_files()` 每小时删 >2h 文件 | `main.py` |
+| 7 | 速率限制器泄漏 | `_trackers` 字典随新 API Key 无限增长 | 每次 `get()` 时 `_cleanup(3600)` 清理 1h 未用 tracker | `rate_limiter.py` |
+| 8 | 日志锁串行化 | `_usage_lock` 让所有请求排队写文件 | 移除锁，文件 append 原子操作 | `main.py:83-90` |
+| 9 | 健康检查无效 | `/api/health` 只返回固定 "ok" | 增加线程池存活数检测 | `main.py` |
+| 2026-07 | **make-mac-app.sh `.command` 双击 read 不生效**：macOS Finder 双击 `.command` 文件时 stdin 未挂载，`read -p` 不等输入直接跳过。改为 `osascript` macOS 原生弹窗 | `make-mac-app.sh` |
+| 2026-07 | **onnxruntime-silicon 安装失败导致丢包**：旧逻辑先 `pip uninstall onnxruntime` 再装 `onnxruntime-silicon`，装失败后 onnxruntime 也没了。改为不预卸，装不上也不影响现有包 | `make-mac-app.sh` |
+| 2026-07 | **pip -q 静默吞掉 segment-anything 报错**：`pip install -r requirements.txt -q` 在 tsinghua 镜像上 torch 下载失败，-q 吞了所有输出，用户不知道装没装上。改为显式分段安装 + 去掉 `-q` + pip 原生进度条 | `make-mac-app.sh` |
+| 2026-07 | **`&&`/`||` 链式判断脆弱**：`pip install torch && pip install segment-anything && echo ✅ || echo ⚠` 中任何命令返回非预期 exit code 都会导致链断。改为 `if/else` 每步独立判断 | `make-mac-app.sh` |
+| 2026-07 | **`segment-anything` 缺 `torchvision` 依赖**：`pip install segment-anything` 只拉 `torch` 不拉 `torchvision`，但 `segment_anything.predictor` 内部 import `torchvision.transforms`，导入时 `ImportError` 被 catch 但用户看到的是"未安装"。改为 `pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu` 一起装 | `make-mac-app.sh`, `sam_local_engine.py` |
