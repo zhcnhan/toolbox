@@ -96,12 +96,12 @@ if [ ! -d "backend/venv" ] || [ ! -d "frontend/node_modules" ] || [ ! -d "backen
         echo "  ℹ 保持通用版 onnxruntime（M1 上也能正常跑）"
     fi
 
-    # SAM 引擎依赖（torch + segment-anything，约 300MB）
-    python3 -c "import torch; import segment_anything" 2>/dev/null
+    # SAM 引擎依赖（torch + torchvision + segment-anything，约 300MB）
+    python3 -c "import torch; import torchvision; import segment_anything" 2>/dev/null
     if [ $? -ne 0 ]; then
-      echo "→ 安装 SAM 引擎依赖（约 300MB，自动显示进度条 + 下载速度）..."
-      echo "  ① 安装 torch（约 200MB）..."
-      pip install torch --index-url https://download.pytorch.org/whl/cpu
+      echo "→ 安装 SAM 引擎依赖（约 320MB，自动显示进度条 + 下载速度）..."
+      echo "  ① 安装 torch + torchvision（约 200MB）..."
+      pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
       if [ $? -eq 0 ]; then
         echo "  ② 安装 segment-anything..."
         pip install segment-anything

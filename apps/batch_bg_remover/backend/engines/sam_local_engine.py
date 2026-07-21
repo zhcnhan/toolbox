@@ -209,7 +209,8 @@ def _get_predictor() -> "SamPredictor":
 
     if not HAS_SAM:
         raise RuntimeError(
-            "segment-anything 未安装。请运行: pip install segment-anything"
+            "SAM 依赖未安装（缺少 torch/torchvision/segment-anything）。"
+            "请运行: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && pip install segment-anything"
         )
 
     if not _SAM_CHECKPOINT.exists():
