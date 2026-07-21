@@ -69,22 +69,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 线程池，用于执行同步的本地模型推理
-_executor = ThreadPoolExecutor(max_workers=2)
+# 线程池，用于执行同步的模型推理（本地引擎 CPU 计算 + 云端引擎 HTTP 请求）
+_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="bg_remover")
+
+# 全局任务超时（秒），防止卡死的任务永久占用线程
+_TASK_TIMEOUT = 600
+
+# ---------------------------------------------------------------------------
+# 文件清理
+# ---------------------------------------------------------------------------
+_CLEANUP_INTERVAL = 3600  # 1 小时清理一次
+_OUTPUT_MAX_AGE = 7200    # 输出文件保留 2 小时
+_UPLOAD_MAX_AGE = 7200    # 上传文件保留 2 小时
 
 # ---------------------------------------------------------------------------
 # 使用监控（临时，用于客户试用期跟踪）
 # ---------------------------------------------------------------------------
 USAGE_LOG = BASE_DIR / "data" / "usage.jsonl"
 USAGE_LOG.parent.mkdir(parents=True, exist_ok=True)
-_usage_lock = threading.Lock()
 
 
 def _log_usage(entry: dict):
-    """记录一条使用日志到 usage.jsonl"""
+    """记录一条使用日志到 usage.jsonl（无锁写入，文件 append 是原子的）"""
     entry["_time"] = datetime.now().isoformat()
     try:
-        with _usage_lock, open(USAGE_LOG, "a", encoding="utf-8") as f:
+        with open(USAGE_LOG, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception:
         pass  # 日志不能影响主流程
@@ -157,13 +166,43 @@ async def clear_stats():
 def _run_sync(coro_func, *args):
     """
     将 async 协程函数包装成同步可调用对象，供 run_in_executor 使用。
-    本地引擎的 remove_bg 是 async 但内部是同步逻辑，
-    用 asyncio.run 在子线程中创建新事件循环来执行。
+    所有引擎（本地 + 云端）都通过此方式运行，避免阻塞事件循环。
     """
     import asyncio
     def _wrapper():
-        return asyncio.run(coro_func(*args))
+        try:
+            return asyncio.run(coro_func(*args))
+        except asyncio.CancelledError:
+            return None  # 任务被取消，静默退出
     return _wrapper
+
+
+# ---------------------------------------------------------------------------
+# 后台任务：定期清理过期文件
+# ---------------------------------------------------------------------------
+async def _cleanup_old_files():
+    """每小时清理超过 2 小时的 uploads 和 outputs 文件"""
+    while True:
+        await asyncio.sleep(_CLEANUP_INTERVAL)
+        now = time.time()
+        for directory, max_age in [(UPLOAD_DIR, _UPLOAD_MAX_AGE), (OUTPUT_DIR, _OUTPUT_MAX_AGE)]:
+            if not directory.exists():
+                continue
+            deleted = 0
+            for f in directory.iterdir():
+                if f.is_file() and (now - f.stat().st_mtime) > max_age:
+                    try:
+                        f.unlink()
+                        deleted += 1
+                    except Exception:
+                        pass
+            if deleted:
+                print(f"[清理] {directory.name}: 删除了 {deleted} 个过期文件")
+
+
+# ---------------------------------------------------------------------------
+# 健康检查（含线程池状态）
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # 数据模型
@@ -183,9 +222,24 @@ class RemoveBgPromptRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # 路由
 # ---------------------------------------------------------------------------
+@app.on_event("startup")
+async def _startup():
+    """启动后台任务：文件清理"""
+    asyncio.create_task(_cleanup_old_files())
+
+
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "batch-bg-remover"}
+    """健康检查（含线程池状态）"""
+    pool = _executor
+    return {
+        "status": "ok",
+        "service": "batch-bg-remover",
+        "thread_pool": {
+            "max_workers": pool._max_workers,
+            "alive": sum(1 for t in pool._threads if t.is_alive()) if hasattr(pool, "_threads") else -1,
+        },
+    }
 
 
 @app.get("/api/proxy")
@@ -377,18 +431,21 @@ async def remove_background(
     t0 = time.time()
 
     try:
-        engine_info = engine.__class__.info()
-        if engine_info.type == "local":
-            loop = asyncio.get_event_loop()
-            result_bytes = await loop.run_in_executor(
-                _executor, _run_sync(engine.remove_bg, image_bytes, api_key)
-            )
-        elif engine_id == "custom":
-            result_bytes = await engine.remove_bg(
-                image_bytes, api_key, base_url=base_url or "", model_name=model_name or ""
+        # 所有引擎统一走线程池，避免阻塞事件循环
+        loop = asyncio.get_event_loop()
+        if engine_id == "custom":
+            future = loop.run_in_executor(
+                _executor, _run_sync(engine.remove_bg, image_bytes, api_key,
+                                     base_url=base_url or "", model_name=model_name or "")
             )
         else:
-            result_bytes = await engine.remove_bg(image_bytes, api_key)
+            future = loop.run_in_executor(
+                _executor, _run_sync(engine.remove_bg, image_bytes, api_key)
+            )
+        result_bytes = await asyncio.wait_for(future, timeout=_TASK_TIMEOUT)
+
+        if result_bytes is None:
+            raise HTTPException(500, "任务被取消，请重试")
 
         elapsed = time.time() - t0
         result_id = uuid.uuid4().hex
@@ -457,29 +514,34 @@ async def remove_background_with_prompt(
     t0 = time.time()
 
     try:
-        engine_info = engine.__class__.info()
-        if engine_info.type == "local":
-            loop = asyncio.get_event_loop()
-            result_bytes = await loop.run_in_executor(
-                _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key)
-            )
-        elif engine_id == "custom":
-            result_bytes = await engine.remove_bg_with_prompt(
-                image_bytes, prompt, api_key, base_url=base_url or "", model_name=model_name or ""
+        # 所有引擎统一走线程池，避免阻塞事件循环
+        loop = asyncio.get_event_loop()
+        if engine_id == "custom":
+            future = loop.run_in_executor(
+                _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key,
+                                     base_url=base_url or "", model_name=model_name or "")
             )
         elif engine_id == "gemini_mask":
             mode = mask_mode if mask_mode in ("polygon", "mask") else "mask"
             n_pts = num_points if num_points and 15 <= num_points <= 500 else None
-            result_bytes = await engine.remove_bg_with_prompt(
-                image_bytes, prompt, api_key, mask_mode=mode, num_points=n_pts
+            future = loop.run_in_executor(
+                _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key,
+                                     mask_mode=mode, num_points=n_pts)
             )
         elif engine_id == "kimi":
             n_pts = num_points if num_points and 15 <= num_points <= 500 else 100
-            result_bytes = await engine.remove_bg_with_prompt(
-                image_bytes, prompt, api_key, num_points=n_pts
+            future = loop.run_in_executor(
+                _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key,
+                                     num_points=n_pts)
             )
         else:
-            result_bytes = await engine.remove_bg_with_prompt(image_bytes, prompt, api_key)
+            future = loop.run_in_executor(
+                _executor, _run_sync(engine.remove_bg_with_prompt, image_bytes, prompt, api_key)
+            )
+        result_bytes = await asyncio.wait_for(future, timeout=_TASK_TIMEOUT)
+
+        if result_bytes is None:
+            raise HTTPException(500, "任务被取消，请重试")
 
         elapsed = time.time() - t0
         result_id = uuid.uuid4().hex

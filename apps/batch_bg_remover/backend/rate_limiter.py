@@ -64,6 +64,8 @@ class _KeyTracker:
         # RPD 日计数
         self._today: Optional[date] = None
         self._daily_count: int = 0
+        # 最后使用时间（用于清理过期 tracker）
+        self._last_used: float = time.time()
 
     # ── 公开方法 ──────────────────────────────────────────────
 
@@ -71,6 +73,7 @@ class _KeyTracker:
         """等待 RPM 窗口（如必要），限速值自适应"""
         with self._lock:
             now = time.time()
+            self._last_used = now
             # 清理过期记录
             while self._timestamps and now - self._timestamps[0] > 60:
                 self._timestamps.popleft()
@@ -91,6 +94,7 @@ class _KeyTracker:
     def record_success(self):
         """记录一次成功调用 → 可能加速"""
         with self._lock:
+            self._last_used = time.time()
             self._check_date()
             self._daily_count += 1
             # 加速：每次成功 +1，不超过上限
@@ -140,6 +144,8 @@ class _Manager:
         """获取（或创建）某 Key 的跟踪器"""
         kh = _hash_key(api_key)
         with self._lock:
+            # 定期清理 1 小时未使用的 tracker
+            self._cleanup(3600)
             if kh not in self._trackers:
                 self._trackers[kh] = _KeyTracker(api_key)
                 logger.info("New tracker for key %s (RPM: %d)", kh, _START_RPM)
@@ -149,6 +155,15 @@ class _Manager:
         """列出所有已知 Key 的用量"""
         with self._lock:
             return [t.get_info() for t in self._trackers.values()]
+
+    def _cleanup(self, max_age: float = 3600):
+        """移除超过 max_age 秒未使用的 tracker"""
+        now = time.time()
+        stale = [kh for kh, t in self._trackers.items()
+                 if now - t._last_used > max_age]
+        for kh in stale:
+            del self._trackers[kh]
+            logger.info("Removed stale tracker: %s", kh)
 
 
 manager = _Manager()
