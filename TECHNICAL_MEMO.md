@@ -254,7 +254,44 @@ ssh root@server 'cd /opt/toolbox && git pull'
 - ❌ 禁止在服务器上执行 `git reset --hard` 或任何破坏性操作
 - ❌ 禁止修改服务器的 git remote（origin 就是 Gitee，不可改动）
 
-### 4.3 服务器环境
+### 4.3 分支策略
+
+| 分支 | 用途 | 可合并到 |
+|------|------|---------|
+| `main` | 公开通用版，所有人可用 | —（基干分支）|
+| `friend` | 安妮/妮妮专属定制版（含真实照片、私人品牌、定制文案） | **不可合并到 main** |
+
+**重要规则**：
+- `main` → `friend`：可定期合并（`git merge main`），把公共修复/功能同步到个人版
+- `friend` → `main`：**绝对禁止**。friend 分支包含个人隐私（真实照片、昵称、定制提示语），合并到 main 等于公开
+- GitHub 上的「Compare & pull request」按钮忽略即可，不会自动合并，不点就行
+
+**同步流程**：
+```bash
+# main 更新后同步到 friend
+git checkout friend && git merge main && git push origin friend
+```
+
+### 4.4 服务器环境
+
+### 4.3 分支策略
+
+| 分支 | 用途 | 可合并到 |
+|------|------|---------|
+| \main\ | 公开通用版，所有人可用 | —（基干分支）|
+| \riend\ | 安妮/妮妮专属定制版（含真实照片、私人品牌、定制文案） | **不可合并到 main** |
+
+**重要规则**：
+- \main\ → \riend\：可定期合并（\git merge main\），把公共修复/功能同步到个人版
+- \riend\ → \main\：**绝对禁止**。friend 分支包含个人隐私（真实照片、昵称、定制提示语），合并到 main 等于公开
+- GitHub 上的「Compare & pull request」按钮忽略即可，不会自动合并，不点就行
+
+**同步流程**：
+\\ash
+# main 更新后同步到 friend
+git checkout friend && git merge main && git push origin friend
+\
+
 
 | 项目 | 值 |
 |------|-----|
