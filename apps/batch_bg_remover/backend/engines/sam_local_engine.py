@@ -201,7 +201,7 @@ _BOX_PROMPT = """你是一个精准的视觉定位助手。给定一张图片和
 _sam_predictor = None
 
 
-def _get_predictor() -> SamPredictor:
+def _get_predictor() -> "SamPredictor":
     """懒加载 SAM 模型单例"""
     global _sam_predictor
     if _sam_predictor is not None:

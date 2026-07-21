@@ -270,20 +270,26 @@ async def gemini_usage(api_key: str = Form("")):
 # ---------------------------------------------------------------------------
 # SAM 本地引擎 — 模型下载管理
 # ---------------------------------------------------------------------------
-from engines.sam_local_engine import get_sam_status, trigger_sam_download
+try:
+    from engines.sam_local_engine import get_sam_status, trigger_sam_download
+    _HAS_SAM_ENGINE = True
+except Exception:
+    _HAS_SAM_ENGINE = False
+    logger.warning("SAM 引擎加载失败，/api/engine/sam_local/* 路由不可用")
 
 
-@app.get("/api/engine/sam_local/status")
-async def sam_status():
-    """检查 SAM 模型缓存状态"""
-    return get_sam_status()
+if _HAS_SAM_ENGINE:
+    @app.get("/api/engine/sam_local/status")
+    async def sam_status():
+        """检查 SAM 模型缓存状态"""
+        return get_sam_status()
 
 
-@app.post("/api/engine/sam_local/download")
-async def sam_download():
-    """触发 SAM 模型下载"""
-    result = trigger_sam_download()
-    return result
+    @app.post("/api/engine/sam_local/download")
+    async def sam_download():
+        """触发 SAM 模型下载"""
+        result = trigger_sam_download()
+        return result
 
 
 @app.get("/api/engine/sam_local/download/progress")
