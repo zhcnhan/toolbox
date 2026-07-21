@@ -86,6 +86,15 @@ if [ ! -d "backend/venv" ] || [ ! -d "frontend/node_modules" ] || [ ! -d "backen
     echo "[2/4] 安装 Python 依赖..."
     pip install -r backend/requirements.txt -q -i https://pypi.tuna.tsinghua.edu.cn/simple
 
+    # 验证 segment-anything 已安装（有时 torch 太大镜像会超时）
+    echo "→ 验证 SAM 引擎依赖..."
+    python3 -c "import segment_anything" 2>/dev/null || {
+      echo "  ⚠ 镜像源超时，从官方源重试 segment-anything..."
+      pip install segment-anything -q 2>/dev/null && \
+        echo "  ✅ segment-anything 安装完成" || \
+        echo "  ⚠ segment-anything 仍未安装，SAM 引擎不可用（不影响其他引擎）"
+    }
+
     # Apple Silicon (M1/M2/M3/M4)：换用 CoreML 加速版 onnxruntime
     # 注意：不先卸载 onnxruntime，装失败也不会丢包
     ARCH=$(uname -m)
