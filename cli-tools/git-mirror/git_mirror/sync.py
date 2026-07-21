@@ -159,15 +159,17 @@ def _is_auth_error(stderr: str, stdout: str = "") -> bool:
 # 推送（自动处理凭据）
 # ---------------------------------------------------------------------------
 
-def _push_mirror(repo_dir: Path, target_label: str, target_url: str):
-    """执行 git push --mirror，凭据缺失时自动询问用户。"""
+def _push_all(repo_dir: Path, target_label: str, target_url: str):
+    """执行 git push --all --tags（推送所有分支和标签），凭据缺失时自动询问用户。"""
     # 先尝试直接用已保存的凭据
     cred = _get_stored_credential(target_url)
     if cred and cred[1]:
         username, token = cred
         auth_url = _embed_credentials(target_url, username, token)
         _run(["git", "-C", str(repo_dir), "remote", "set-url", target_label, auth_url])
-        result = _try_run(["git", "-C", str(repo_dir), "push", "--mirror", target_label])
+        result = _try_run(["git", "-C", str(repo_dir), "push", "--all", target_label])
+        if result["ok"]:
+            _try_run(["git", "-C", str(repo_dir), "push", "--tags", target_label])
         _run(["git", "-C", str(repo_dir), "remote", "set-url", target_label, target_url])
         if result["ok"]:
             _print_push_output(result)
@@ -184,8 +186,14 @@ def _push_mirror(repo_dir: Path, target_label: str, target_url: str):
         print(f"  [AUTH] 已保存的凭据已过期，请重新输入")
 
     # 无凭据或已过期 → 直接尝试 push（可能 SSH key 已配好）
-    result = _try_run(["git", "-C", str(repo_dir), "push", "--mirror", target_label])
+    result = _try_run(["git", "-C", str(repo_dir), "push", "--all", target_label])
     if result["ok"]:
+        _try_run(["git", "-C", str(repo_dir), "push", "--tags", target_label])
+        return
+    # 如果 --all 失败且没有 tags，也返回
+    if _is_auth_error(result["stderr"], result["stdout"]):
+        pass  # 继续到下面处理 auth
+    else:
         _print_push_output(result)
         return
 
@@ -203,9 +211,10 @@ def _push_mirror(repo_dir: Path, target_label: str, target_url: str):
         auth_url = _embed_credentials(target_url, username, token)
         _run(["git", "-C", str(repo_dir), "remote", "set-url", target_label, auth_url])
         try:
-            output = _try_run(["git", "-C", str(repo_dir), "push", "--mirror", target_label])
+            output = _try_run(["git", "-C", str(repo_dir), "push", "--all", target_label])
             if output["ok"]:
                 _print_push_output(output)
+                _try_run(["git", "-C", str(repo_dir), "push", "--tags", target_label])
             else:
                 # 凭据可能错误
                 print(f"\n[ERROR] 推送失败，凭据可能不正确")
@@ -273,6 +282,6 @@ def sync_once(name: str, repo_dir: Path, source_label: str, target_label: str,
     print(f"  [OK] 拉取完成")
 
     # push
-    print(f"  [^] push --mirror -> {target_label} ({target_url}) ...")
-    _push_mirror(repo_dir, target_label, target_url)
+    print(f"  [^] push --all + --tags -> {target_label} ({target_url}) ...")
+    _push_all(repo_dir, target_label, target_url)
     print(f"  [OK] 推送完成")
