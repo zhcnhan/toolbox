@@ -61,4 +61,7 @@ git-mirror sync --all
 
 ## 原理
 
-使用 `git clone --bare` + `git fetch` + `git push --mirror` 实现，不依赖任何平台 API，纯 Git 命令。
+使用 `git clone --bare` + `git fetch` + `git push --all + --tags` 实现，不依赖任何平台 API，纯 Git 命令。
+
+> ⚠️ `1.0.0` 之前使用 `git push --mirror`，会误推 remote tracking ref（如 `github/main`），导致 Gitee 拒绝。
+> 从 `1.0.0` 起改为 `push --all + --tags`，只推送真正的分支和标签，双向兼容。
