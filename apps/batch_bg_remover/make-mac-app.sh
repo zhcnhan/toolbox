@@ -86,15 +86,6 @@ if [ ! -d "backend/venv" ] || [ ! -d "frontend/node_modules" ] || [ ! -d "backen
     echo "[2/4] 安装 Python 依赖..."
     pip install -r backend/requirements.txt -q -i https://pypi.tuna.tsinghua.edu.cn/simple
 
-    # 验证 segment-anything 已安装（有时 torch 太大镜像会超时）
-    echo "→ 验证 SAM 引擎依赖..."
-    python3 -c "import segment_anything" 2>/dev/null || {
-      echo "  ⚠ 镜像源超时，从官方源重试 segment-anything..."
-      pip install segment-anything -q 2>/dev/null && \
-        echo "  ✅ segment-anything 安装完成" || \
-        echo "  ⚠ segment-anything 仍未安装，SAM 引擎不可用（不影响其他引擎）"
-    }
-
     # Apple Silicon (M1/M2/M3/M4)：换用 CoreML 加速版 onnxruntime
     # 注意：不先卸载 onnxruntime，装失败也不会丢包
     ARCH=$(uname -m)
@@ -105,18 +96,29 @@ if [ ! -d "backend/venv" ] || [ ! -d "frontend/node_modules" ] || [ ! -d "backen
         echo "  ℹ 保持通用版 onnxruntime（M1 上也能正常跑）"
     fi
 
+    # SAM 引擎依赖（torch + segment-anything，约 300MB）
+    echo "→ 安装 SAM 引擎依赖（约 300MB，耐心等待）..."
+    python3 -c "import torch; import segment_anything" 2>/dev/null && \
+      echo "  ✅ SAM 依赖已就绪" || {
+      echo "  ① 安装 torch（约 200MB）..."
+      pip install torch --index-url https://download.pytorch.org/whl/cpu 2>&1 | tail -1 && \
+      echo "  ② 安装 segment-anything..." && \
+      pip install segment-anything 2>&1 | tail -1 && \
+      echo "  ✅ SAM 引擎安装完成" || \
+      echo "  ⚠ SAM 引擎安装失败，不影响基础抠图。以后可手动：pip install torch segment-anything"
+    }
+
     # 预下载 rembg 模型（避免首次抠图超时）
     echo "→ 下载 rembg 模型 (~176MB)..."
     mkdir -p "$HOME/.u2net"
-    # 多镜像轮询
+    # 多镜像轮询（gh-proxy.com 最快，排第一）
     U2NET_URLS=(
-      "https://ghproxy.net/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
       "https://gh-proxy.com/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
+      "https://ghproxy.net/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
       "https://mirror.ghproxy.com/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
       "https://github.moeyy.xyz/https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
       "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
     )
-    U2NET_OK=0
     for url in "${U2NET_URLS[@]}"; do
       HOST=$(echo "$url" | sed 's|https://||' | cut -d/ -f1)
       echo "  尝试 ($HOST)... 超时 3 分钟"
