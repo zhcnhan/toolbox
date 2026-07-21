@@ -457,6 +457,21 @@ cd cli-tools/git-mirror && python -m git_mirror sync toolbox
 | 2026-07 | **git-mirror 推送被 Gitee 拒绝**：`push --mirror` 会把 bare repo 里的 remote tracking refs（`github/main`、`gitee/main`）一并推送，Gitee 拒绝更新 hidden ref。改为 `push --all + --tags`，只推真实分支和标签 | `sync.py` |
 | 2026-07 | **SAM 类型注解导致导入崩溃**：`def _get_predictor() -> SamPredictor` 在导入时求值，而 `SamPredictor` 的 import 在 `try/except` 内，若 segment-anything 未安装则 `NameError`。改为 `-> "SamPredictor"`（字符串 forward reference）| `sam_local_engine.py` |
 | 2026-07 | **main.py 硬 import SAM 引擎**：`from engines.sam_local_engine import get_sam_status, trigger_sam_download` 在模块顶层，SAM 一炸整个程序起不来。改为 `try/except` + 条件注册路由 | `main.py` |
+| 2026-07 | **并发崩溃全面修复**：`ThreadPoolExecutor(max_workers=2)` 过小 + 云端引擎 `requests.post` 阻塞事件循环 + 无超时 + 取消后线程池容量永久减少 + 输出文件永不清理 + 速率限制器 `_trackers` 无限增长 | 见下方详细记录 |
+
+### 并发修复详细记录（2026-07）
+
+| # | 问题 | 根因 | 修复 | 涉及文件 |
+|---|------|------|------|---------|
+| 1 | 多个请求只有最后一个处理 | `ThreadPoolExecutor(max_workers=2)`，第 3 个永久排队 | `max_workers=8`，命名线程 `bg_remover` | `main.py:73` |
+| 2 | 页面越来越卡（内存泄漏） | `get_engine()` 每次 `cls()` 新实例，rembg 每次加载 ~176MB session | 全局 `_ENGINE_INSTANCES` 缓存单例 | `engine_registry.py:70-75` |
+| 3 | 一个慢用户阻塞所有人 | cloud 引擎直接 `await` 在事件循环中同步 `requests.post()` | 所有引擎统一走 `run_in_executor` + 线程池 | `main.py:381-391` |
+| 4 | 取消后程序半崩溃 | `CancelledError` 炸线程，worker 永久减少 | `_run_sync` 中 `try/except CancelledError` 静默退出 | `main.py:164-166` |
+| 5 | 无超时保护 | 卡住的任务永久占用 worker | `asyncio.wait_for(future, timeout=600)` | `main.py:445` |
+| 6 | 输出文件堆积 | uploads/outputs 永不清理 | 后台 `_cleanup_old_files()` 每小时删 >2h 文件 | `main.py` |
+| 7 | 速率限制器泄漏 | `_trackers` 字典随新 API Key 无限增长 | 每次 `get()` 时 `_cleanup(3600)` 清理 1h 未用 tracker | `rate_limiter.py` |
+| 8 | 日志锁串行化 | `_usage_lock` 让所有请求排队写文件 | 移除锁，文件 append 原子操作 | `main.py:83-90` |
+| 9 | 健康检查无效 | `/api/health` 只返回固定 "ok" | 增加线程池存活数检测 | `main.py` |
 | 2026-07 | **make-mac-app.sh `.command` 双击 read 不生效**：macOS Finder 双击 `.command` 文件时 stdin 未挂载，`read -p` 不等输入直接跳过。改为 `osascript` macOS 原生弹窗 | `make-mac-app.sh` |
 | 2026-07 | **onnxruntime-silicon 安装失败导致丢包**：旧逻辑先 `pip uninstall onnxruntime` 再装 `onnxruntime-silicon`，装失败后 onnxruntime 也没了。改为不预卸，装不上也不影响现有包 | `make-mac-app.sh` |
 | 2026-07 | **pip -q 静默吞掉 segment-anything 报错**：`pip install -r requirements.txt -q` 在 tsinghua 镜像上 torch 下载失败，-q 吞了所有输出，用户不知道装没装上。改为显式分段安装 + 去掉 `-q` + pip 原生进度条 | `make-mac-app.sh` |
