@@ -87,15 +87,13 @@ if [ ! -d "backend/venv" ] || [ ! -d "frontend/node_modules" ] || [ ! -d "backen
     pip install -r backend/requirements.txt -q -i https://pypi.tuna.tsinghua.edu.cn/simple
 
     # Apple Silicon (M1/M2/M3/M4)：换用 CoreML 加速版 onnxruntime
+    # 注意：不先卸载 onnxruntime，装失败也不会丢包
     ARCH=$(uname -m)
     if [ "$ARCH" = "arm64" ]; then
-      echo "→ 检测到 Apple Silicon ($ARCH)，安装 CoreML 加速版 onnxruntime..."
-      pip uninstall onnxruntime -y -q 2>/dev/null
-      # 清华镜像可能没有 onnxruntime-silicon，先用官方源试，不行回退
-      pip install onnxruntime-silicon -q 2>/dev/null || \
-        pip install onnxruntime-silicon -q -i https://pypi.tuna.tsinghua.edu.cn/simple 2>/dev/null || \
-        (echo "  ⚠ onnxruntime-silicon 不可用，重新安装通用版 onnxruntime" && \
-         pip install onnxruntime>=1.16.0 -q -i https://pypi.tuna.tsinghua.edu.cn/simple)
+      echo "→ 检测到 Apple Silicon ($ARCH)，尝试安装 CoreML 加速版 onnxruntime..."
+      pip install onnxruntime-silicon -q 2>/dev/null && \
+        echo "  ✅ onnxruntime-silicon 安装完成（推理速度翻倍）" || \
+        echo "  ℹ 保持通用版 onnxruntime（M1 上也能正常跑）"
     fi
 
     # 预下载 rembg 模型（避免首次抠图超时）
