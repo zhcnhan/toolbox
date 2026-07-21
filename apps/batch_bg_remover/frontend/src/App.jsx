@@ -340,12 +340,12 @@ export default function App() {
         className="text-center mb-8 pt-4"
       >
         <h1 className="text-3xl md:text-4xl font-bold mb-2">
-          <span className="bg-gradient-to-r from-accent-pink via-accent-purple to-accent-blue bg-clip-text text-transparent">
-            ✂️ 批量抠图
+          <span className="bg-gradient-to-r from-accent-pink via-accent-lavender to-accent-blue bg-clip-text text-transparent">
+            🎀 妮妮的抠图小工具
           </span>
         </h1>
-        <p className="text-white/40 text-sm">
-          本地 & 云端双模式 · 自动抠图 + 提示词修正 · 一键打包下载
+        <p className="text-pink-300/40 text-sm">
+          给安妮的专属定制 ✨ 非常简单非常好用~
         </p>
       </motion.header>
 
@@ -511,7 +511,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="text-center mt-12 pb-6 text-white/20 text-xs">
-        Batch Background Remover · 本地模型 + 云端 API · 图片不会上传至第三方服务器
+        给妮妮的 🎀 有什么不会的就问哥哥~
       </footer>
     </div>
   );

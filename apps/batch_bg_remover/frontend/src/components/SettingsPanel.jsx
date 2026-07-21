@@ -9,6 +9,46 @@ import { motion } from 'framer-motion';
  *   3. 填写各引擎的 API Key
  */
 
+// ── 小白引导提示（给妮妮的专属说明） ──────────────────────────
+const ENGINE_TIPS = {
+  rembg_local:
+    '🎈 这个最厉害啦！不用联网、不用Key、不用花钱！\n把图片拖进来它就自己帮你把背景去掉啦～ 适合抠普通照片、人物、物品，啥都能抠！',
+  icon_bg:
+    '🎨 这个是专门用来抠图标的！\n如果你的图片背景是纯白色或者纯黑色的图标/Logo/按钮，就用这个，又快又好！',
+  sam_local:
+    '🤖 这个最聪明了，能认出图片里有什么东西。\n但是它需要一个 1.2GB 的大脑（模型文件），第一次用的时候要下载一下。\n等下载完了之后，连头发丝都能抠干净！',
+  gemini_mask:
+    '☁️ 这个需要哥哥帮你去弄一个叫 API Key 的东西才能用哦。\n它是 Google 家的 AI，会把你的图片发到 Google 去处理。\n按次数收费的，省着点用～',
+  remove_bg:
+    '☁️ 这个是另一个云端引擎，也需要 API Key。\n它是专门做抠图的网站，抠人像效果很好，但也要花钱的。',
+  kimi:
+    '☁️ 月之暗面的 Kimi AI，也需要 Key。\n适合抠一些小的物体，比如杯子、手机、玩具这种。\n也是按次数收费的～',
+  custom:
+    '🔧 这个是给懂技术的哥哥用的，可以连接任何 AI 接口。\n妮妮不要碰这个，容易弄坏 😝',
+  gemini:
+    '☁️ Google 的 Gemini AI，需要 API Key。\n跟上面的 Gemini Mask 一样，只是这个模式不一样。',
+};
+
+// ── 引擎模式下对妮妮不友好的警告 ───────────────────────────
+const ENGINE_MODE_WARNINGS = {
+  gemini_mask_polygon: (
+    <div className="text-[11px] text-amber-300/80 bg-amber-500/10 p-2 rounded-lg mt-2 leading-relaxed">
+      ⚠️ 妮妮注意：这个「坐标模式」是让 AI 自己猜要抠哪里，但 AI 猜得不准！<br />
+      经常抠出来乱七八糟的。哥哥建议你不要用这个模式哦～<br />
+      用上面那个「掩膜 PNG」模式效果会好很多，但需要 Key 绑卡才能用。<br />
+      所以妮妮还是用最上面那个自动的 <b>rembg</b> 吧！又快又好！
+    </div>
+  ),
+  kimi_coords: (
+    <div className="text-[11px] text-amber-300/80 bg-amber-500/10 p-2 rounded-lg mt-2 leading-relaxed">
+      ⚠️ 妮妮注意：Kimi 的坐标模式也是一样的情况～<br />
+      AI 画出来的框经常歪歪扭扭的，效果不太稳定。<br />
+      可以试试看，但如果不好看不要失望哦，换回 rembg 就好啦！🐣
+    </div>
+  ),
+};
+
+
 export default function SettingsPanel({ engines, settings, onUpdate, proxyConfig, onProxySave }) {
   const autoEngines = engines.filter(e => e.supports_auto);
   const promptEngines = engines.filter(e => e.supports_prompt);
@@ -22,15 +62,16 @@ export default function SettingsPanel({ engines, settings, onUpdate, proxyConfig
   return (
     <div className="glass p-6">
       <h2 className="text-lg font-bold mb-5 flex items-center gap-2">
-        <span>⚙️</span> 引擎设置
+        <span>🎀</span> 选一个工具吧~
       </h2>
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* 自动抠图引擎 */}
         <div>
-          <h3 className="text-sm font-semibold text-white/60 mb-3 uppercase tracking-wide">
-            🎯 自动抠图引擎
+          <h3 className="text-sm font-semibold text-pink-300/60 mb-3 tracking-wide">
+            🎯 选一个来自动抠图
           </h3>
+          <p className="text-xs text-pink-300/30 mb-3 -mt-2">鼠标在名字上停一下，会告诉你怎么用的～</p>
           <div className="space-y-2">
             {autoEngines.map((engine) => (
               <EngineCard
@@ -50,9 +91,10 @@ export default function SettingsPanel({ engines, settings, onUpdate, proxyConfig
 
         {/* 提示词分割引擎 */}
         <div>
-          <h3 className="text-sm font-semibold text-white/60 mb-3 uppercase tracking-wide">
-            ✂️ 提示词分割引擎
+          <h3 className="text-sm font-semibold text-pink-300/60 mb-3 tracking-wide">
+            ✂️ 选一个来修图（用文字告诉它要扣啥）
           </h3>
+          <p className="text-xs text-pink-300/30 mb-3 -mt-2">比如在框框里写「把小猫抠出来」</p>
           <div className="space-y-2">
             {promptEngines.map((engine) => (
               <EngineCard
@@ -141,7 +183,22 @@ function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settin
         <div className="flex items-center gap-2">
           <span className="text-xl">{engine.icon}</span>
           <div>
-            <div className="font-semibold text-sm">{engine.name}</div>
+            <div className="font-semibold text-sm flex items-center gap-1">
+              {engine.name}
+              {/* 悬浮提示图标 */}
+              <span className="group relative inline-flex">
+                <span className="text-xs text-pink-300/40 cursor-help hover:text-pink-300/70 transition">💡</span>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+                             hidden group-hover:block whitespace-pre-line
+                             px-4 py-3 rounded-2xl text-xs text-pink-100
+                             bg-purple-900/95 backdrop-blur shadow-xl z-50
+                             min-w-[260px] leading-relaxed pointer-events-none">
+                  {ENGINE_TIPS[engine.id] || '把这个图片拖进来试试看～'}
+                  <div className="absolute top-full left-1/2 -translate-x-1/2
+                                  border-4 border-transparent border-t-purple-900/95" />
+                </div>
+              </span>
+            </div>
             <span className={`tag ${engine.type === 'local' ? 'tag-local' : 'tag-cloud'}`}>
               {engine.type === 'local' ? '本地' : '云端'}
             </span>
@@ -177,13 +234,13 @@ function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settin
             min="15"
             max="500"
             step="5"
-            className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/10 accent-accent-blue"
-            style={{ background: `linear-gradient(to right, #3b82f6 ${((settings.kimi_num_points || 100) - 15) / 485 * 100}%, rgba(255,255,255,0.1) ${((settings.kimi_num_points || 100) - 15) / 485 * 100}%)` }}
+            className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/10 accent-accent-pink"
+            style={{ background: `linear-gradient(to right, #f472b6 ${((settings.kimi_num_points || 100) - 15) / 485 * 100}%, rgba(255,255,255,0.1) ${((settings.kimi_num_points || 100) - 15) / 485 * 100}%)` }}
             value={settings.kimi_num_points || 100}
             onChange={(e) => {
               const val = parseInt(e.target.value);
               onUpdate('kimi_num_points', val);
-              e.target.style.background = `linear-gradient(to right, #3b82f6 ${(val - 15) / 485 * 100}%, rgba(255,255,255,0.1) ${(val - 15) / 485 * 100}%)`;
+              e.target.style.background = `linear-gradient(to right, #f472b6 ${(val - 15) / 485 * 100}%, rgba(255,255,255,0.1) ${(val - 15) / 485 * 100}%)`;
             }}
           />
           <div className="flex justify-between text-xs text-white/20 mt-0.5">
@@ -191,37 +248,39 @@ function EngineCard({ engine, isActive, onSelect, apiKey, onApiKeyChange, settin
             <span>推荐 (100)</span>
             <span>精细 (500)</span>
           </div>
+          {ENGINE_MODE_WARNINGS.kimi_coords}
         </div>
       )}
 
       {/* Gemini Mask 模式切换 */}
       {engine.id === 'gemini_mask' && isActive && (
         <div className="mt-3" onClick={(e) => e.stopPropagation()}>
-          <label className="text-xs text-white/50 block mb-1">输出模式</label>
+          <label className="text-xs text-white/50 block mb-1">选一个模式</label>
           <div className="flex gap-2">
             <button
               className={`flex-1 px-3 py-1.5 rounded-lg text-xs transition ${
                 (settings.mask_mode || 'polygon') === 'mask'
-                  ? 'bg-accent-blue/20 text-accent-blue'
+                  ? 'bg-accent-pink/20 text-accent-pink'
                   : 'bg-white/5 text-white/40 hover:bg-white/10'
               }`}
               onClick={() => onUpdate('mask_mode', 'mask')}
             >
-              掩膜 PNG
-              <span className="block text-[10px] text-white/20">需绑卡</span>
+              🖼️ 掩膜 PNG
+              <span className="block text-[10px] text-pink-300/40">效果好，但需要 Key 绑卡</span>
             </button>
             <button
               className={`flex-1 px-3 py-1.5 rounded-lg text-xs transition ${
                 (settings.mask_mode || 'polygon') === 'polygon'
-                  ? 'bg-accent-blue/20 text-accent-blue'
+                  ? 'bg-accent-pink/20 text-accent-pink'
                   : 'bg-white/5 text-white/40 hover:bg-white/10'
               }`}
               onClick={() => onUpdate('mask_mode', 'polygon')}
             >
-              多边形坐标
-              <span className="block text-[10px] text-white/20">推荐（当前可用）</span>
+              📐 坐标模式
+              <span className="block text-[10px] text-amber-300/50">⚠️ 不太准，试试看就好</span>
             </button>
           </div>
+          {(!settings.mask_mode || settings.mask_mode === 'polygon') && ENGINE_MODE_WARNINGS.gemini_mask_polygon}
         </div>
       )}
 
@@ -321,8 +380,8 @@ function ProxySettings({ proxyConfig, onProxySave }) {
 
   return (
     <div className="mt-6 p-4 glass-light">
-      <h3 className="text-sm font-semibold text-white/60 mb-3 uppercase tracking-wide">
-        🌐 代理配置
+      <h3 className="text-sm font-semibold text-pink-300/60 mb-3 tracking-wide">
+        🌐 网络设置（一般用不到，让哥哥来弄）
       </h3>
       <div className="space-y-3">
         <label className="flex items-center gap-2 text-sm">

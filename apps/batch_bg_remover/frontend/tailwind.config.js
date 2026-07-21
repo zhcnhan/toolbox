@@ -8,15 +8,18 @@ export default {
     extend: {
       colors: {
         bg: {
-          DEFAULT: '#0f0f1a',
-          card: '#1a1a2e',
-          hover: '#252540',
+          DEFAULT: '#1a0a1e',
+          card: '#2a1030',
+          hover: '#3a1845',
         },
         accent: {
-          pink: '#ff6b9d',
-          purple: '#a78bfa',
-          blue: '#60a5fa',
-          green: '#34d399',
+          pink: '#ff8fab',
+          purple: '#c084fc',
+          blue: '#67e8f9',
+          green: '#6ee7b7',
+          coral: '#fb7185',
+          lavender: '#d8b4fe',
+          peach: '#fda4af',
         },
       },
       animation: {
