@@ -249,6 +249,14 @@ SCRIPT
 
 chmod +x "$APP_FILE"
 
+# 在 Finder 中隐藏 toolbox 文件夹（不影响路径和运行）
+TOOLBOX_DIR="$HOME/Desktop/toolbox"
+if [ -d "$TOOLBOX_DIR" ]; then
+  chflags hidden "$TOOLBOX_DIR" 2>/dev/null && \
+    echo "  💡 toolbox 文件夹已在 Finder 中隐藏（不影响使用）" || \
+    echo "  ℹ toolbox 文件夹保持可见"
+fi
+
 echo ""
 echo "=========================================="
 echo "  ✅ 生成完成！"
