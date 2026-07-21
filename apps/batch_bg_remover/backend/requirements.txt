@@ -1,5 +1,8 @@
 rembg>=0.1.0
 onnxruntime>=1.16.0
+# Apple Silicon (M1/M2/M3/M4) 建议安装 onnxruntime-silicon 替代 onnxruntime
+# 可在 make-mac-app.sh 中自动完成，或手动执行：
+#   pip uninstall onnxruntime -y && pip install onnxruntime-silicon
 Pillow>=10.0.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0

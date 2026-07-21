@@ -86,6 +86,16 @@ if [ ! -d "backend/venv" ] || [ ! -d "frontend/node_modules" ] || [ ! -d "backen
     echo "[2/4] 安装 Python 依赖..."
     pip install -r backend/requirements.txt -q -i https://pypi.tuna.tsinghua.edu.cn/simple
 
+    # Apple Silicon (M1/M2/M3/M4)：换用 CoreML 加速版 onnxruntime
+    ARCH=$(uname -m)
+    if [ "$ARCH" = "arm64" ]; then
+      echo "→ 检测到 Apple Silicon ($ARCH)，安装 CoreML 加速版 onnxruntime..."
+      pip uninstall onnxruntime -y -q 2>/dev/null
+      pip install onnxruntime-silicon -q -i https://pypi.tuna.tsinghua.edu.cn/simple 2>/dev/null && \
+        echo "  ✅ onnxruntime-silicon 安装完成（推理速度翻倍）" || \
+        echo "  ⚠ onnxruntime-silicon 安装失败，使用通用版 onnxruntime"
+    fi
+
     # 预下载 rembg 模型（避免首次抠图超时）
     echo "→ 下载 rembg 模型 (~176MB)..."
     mkdir -p "$HOME/.u2net"
