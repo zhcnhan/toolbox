@@ -101,9 +101,9 @@ if [ ! -d "backend/venv" ] || [ ! -d "frontend/node_modules" ] || [ ! -d "backen
     python3 -c "import torch; import segment_anything" 2>/dev/null && \
       echo "  ✅ SAM 依赖已就绪" || {
       echo "  ① 安装 torch（约 200MB）..."
-      pip install torch --index-url https://download.pytorch.org/whl/cpu 2>&1 | tail -1 && \
+      pip install torch --index-url https://download.pytorch.org/whl/cpu && \
       echo "  ② 安装 segment-anything..." && \
-      pip install segment-anything 2>&1 | tail -1 && \
+      pip install segment-anything && \
       echo "  ✅ SAM 引擎安装完成" || \
       echo "  ⚠ SAM 引擎安装失败，不影响基础抠图。以后可手动：pip install torch segment-anything"
     }
@@ -156,50 +156,64 @@ if [ ! -d "backend/venv" ] || [ ! -d "frontend/node_modules" ] || [ ! -d "backen
 
   # SAM 模型（~1.25GB），询问是否预下载
   SAM_PATH="$HOME/.cache/sam/sam_vit_l_0b3195.pth"
-  if [ ! -f "$SAM_PATH" ]; then
-    echo ""
-    echo "→ SAM 1 ViT-L 模型（~1.25GB），用于高精度本地 AI 抠图"
-    echo "  如果现在不下载，在网页上首次使用 SAM 引擎时会自动下载（较慢）"
-    # 用 macOS 原生弹窗代替 read，避免 .command 双击时 stdin 不工作
-    DL_SAM=""
-    if command -v osascript &>/dev/null; then
-      DL_SAM=$(osascript -e 'button returned of (display dialog "下载 SAM 1 ViT-L 模型（~1.25GB）吗？\n这是高精度 AI 抠图引擎，不装也不影响基础抠图。" buttons {"不下载", "下载"} default button "不下载" with icon note)' 2>/dev/null)
-    else
-      read -p "  是否现在下载（推荐）？[y/N] " dl_sam
-      [ "$dl_sam" = "y" ] || [ "$dl_sam" = "Y" ] && DL_SAM="下载"
-    fi
-    if [ "$DL_SAM" = "下载" ]; then
-      echo "→ 下载 SAM 模型中..."
-      mkdir -p "$HOME/.cache/sam"
-      SAM_URL="https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth"
-      SAM_MIRRORS=(
-        "https://ghproxy.net/$SAM_URL"
-        "https://gh-proxy.com/$SAM_URL"
-        "https://mirror.ghproxy.com/$SAM_URL"
-        "https://github.moeyy.xyz/$SAM_URL"
-        "$SAM_URL"
-      )
-      SAM_OK=0
-      for url in "${SAM_MIRRORS[@]}"; do
-        HOST=$(echo "$url" | sed 's|https://||' | cut -d/ -f1)
-        echo "  尝试 ($HOST)... 超时 10 分钟"
-        curl -L -o "$SAM_PATH" "$url" \
-          --connect-timeout 30 --max-time 600 --progress-bar 2>&1 | \
-          grep -E '[0-9]+\.[0-9]+[kMG]?B|^  %' || true
-        SIZE=$(stat -f%z "$SAM_PATH" 2>/dev/null || echo 0)
-        if [ "$SIZE" -gt 1000000000 ]; then
-          SAM_OK=1
-          echo "  ✅ 下载完成 ($(echo "scale=1; $SIZE/1024/1024" | bc)MB)"
-          break
-        fi
+  # 只在 SAM 依赖已安装的情况下弹出询问（否则弹了也没用）
+  python3 -c "import segment_anything" 2>/dev/null && SAM_DEPS_OK=true || SAM_DEPS_OK=false
+  if [ "$SAM_DEPS_OK" = true ]; then
+    if [ -f "$SAM_PATH" ]; then
+      SAM_SIZE=$(stat -f%z "$SAM_PATH" 2>/dev/null || echo 0)
+      if [ "$SAM_SIZE" -gt 1000000000 ]; then
+        echo ""
+        echo "  ✅ SAM 模型已存在（$(echo "scale=1; $SAM_SIZE/1024/1024/1024" | bc)GB），无需下载"
+      else
+        # 模型文件损坏，重新下载
         rm -f "$SAM_PATH"
-        echo "  ⚠ 失败 (大小不符: $SIZE bytes)"
-      done
-      if [ "$SAM_OK" -eq 0 ]; then
-        echo "  ⚠ 所有镜像均失败，首次使用 SAM 引擎时网页会触发下载"
+        DL_SAM="下载"
       fi
-    else
-      echo "  已跳过，首次使用 SAM 引擎时网页会自动下载"
+    fi
+    if [ ! -f "$SAM_PATH" ]; then
+      echo ""
+      echo "→ SAM 1 ViT-L 模型（~1.25GB），用于高精度本地 AI 抠图"
+      echo "  如果现在不下载，可以在网页上触发下载（较慢）"
+      DL_SAM=""
+      if command -v osascript &>/dev/null; then
+        DL_SAM=$(osascript -e 'button returned of (display dialog "下载 SAM 1.2GB 模型吗？\n这是高精度抠图引擎的模型文件，没有它 SAM 引擎无法使用。\n（rembg 和图标抠图不需要它，不影响基础抠图）" buttons {"不下载", "下载"} default button "不下载" with icon note)' 2>/dev/null)
+      else
+        read -p "  是否现在下载（推荐）？[y/N] " ans
+        [ "$ans" = "y" ] || [ "$ans" = "Y" ] && DL_SAM="下载"
+      fi
+      if [ "$DL_SAM" = "下载" ]; then
+        echo "→ 下载 SAM 模型中..."
+        mkdir -p "$HOME/.cache/sam"
+        SAM_URL="https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth"
+        SAM_MIRRORS=(
+          "https://ghproxy.net/$SAM_URL"
+          "https://gh-proxy.com/$SAM_URL"
+          "https://mirror.ghproxy.com/$SAM_URL"
+          "https://github.moeyy.xyz/$SAM_URL"
+          "$SAM_URL"
+        )
+        SAM_OK=0
+        for url in "${SAM_MIRRORS[@]}"; do
+          HOST=$(echo "$url" | sed 's|https://||' | cut -d/ -f1)
+          echo "  尝试 ($HOST)... 超时 10 分钟"
+          curl -L -o "$SAM_PATH" "$url" \
+            --connect-timeout 30 --max-time 600 --progress-bar 2>&1 | \
+            grep -E '[0-9]+\.[0-9]+[kMG]?B|^  %' || true
+          SIZE=$(stat -f%z "$SAM_PATH" 2>/dev/null || echo 0)
+          if [ "$SIZE" -gt 1000000000 ]; then
+            SAM_OK=1
+            echo "  ✅ 下载完成 ($(echo "scale=1; $SIZE/1024/1024" | bc)MB)"
+            break
+          fi
+          rm -f "$SAM_PATH"
+          echo "  ⚠ 失败 (大小不符: $SIZE bytes)"
+        done
+        if [ "$SAM_OK" -eq 0 ]; then
+          echo "  ⚠ 所有镜像均失败，首次使用 SAM 引擎时网页会触发下载"
+        fi
+      else
+        echo "  已跳过，可在网页上触发下载"
+      fi
     fi
   fi
 
