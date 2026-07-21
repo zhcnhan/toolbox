@@ -4,6 +4,7 @@ import SettingsPanel from './components/SettingsPanel';
 import DropZone from './components/DropZone';
 import ImageGrid from './components/ImageGrid';
 import PromptPanel from './components/PromptPanel';
+import MagicBackground, { AnnieAvatar } from './components/MagicBackground';
 import { fetchEngines, uploadImages, removeBg, removeBgWithPrompt, getDownloadUrl, getDownloadZipUrl, getProxyConfig, updateProxyConfig, checkSAMStatus, triggerSAMDownload, getSAMDownloadProgress, deleteUpload } from './api';
 
 /**
@@ -332,20 +333,31 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto">
+    <div className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto relative">
+      {/* 魔法背景：漂浮手办 + 旋转魔法阵 + 星点 */}
+      <MagicBackground />
+
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="text-center mb-8 pt-4"
       >
-        <h1 className="text-3xl md:text-4xl font-bold mb-2">
-          <span className="bg-gradient-to-r from-accent-pink via-accent-lavender to-accent-blue bg-clip-text text-transparent">
-            🎀 妮妮的抠图小工具
-          </span>
-        </h1>
+        <div className="flex items-center justify-center gap-3 mb-3">
+          <AnnieAvatar size={56} />
+          <motion.h1
+            className="text-3xl md:text-4xl font-bold text-glow"
+            animate={{ y: [0, -3, 0] }}
+            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <span className="bg-gradient-to-r from-accent-pink via-accent-lavender to-accent-blue bg-clip-text text-transparent">
+              妮妮的抠图小工具
+            </span>
+          </motion.h1>
+          <AnnieAvatar size={56} />
+        </div>
         <p className="text-pink-300/40 text-sm">
-          给安妮的专属定制 ✨ 非常简单非常好用~
+          ✨ 给安妮的专属魔法版 · 非常简单非常好用~ ✨
         </p>
       </motion.header>
 
