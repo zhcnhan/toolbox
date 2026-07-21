@@ -97,16 +97,25 @@ if [ ! -d "backend/venv" ] || [ ! -d "frontend/node_modules" ] || [ ! -d "backen
     fi
 
     # SAM 引擎依赖（torch + segment-anything，约 300MB）
-    echo "→ 安装 SAM 引擎依赖（约 300MB，耐心等待）..."
-    python3 -c "import torch; import segment_anything" 2>/dev/null && \
-      echo "  ✅ SAM 依赖已就绪" || {
+    python3 -c "import torch; import segment_anything" 2>/dev/null
+    if [ $? -ne 0 ]; then
+      echo "→ 安装 SAM 引擎依赖（约 300MB，自动显示进度条 + 下载速度）..."
       echo "  ① 安装 torch（约 200MB）..."
-      pip install torch --index-url https://download.pytorch.org/whl/cpu && \
-      echo "  ② 安装 segment-anything..." && \
-      pip install segment-anything && \
-      echo "  ✅ SAM 引擎安装完成" || \
-      echo "  ⚠ SAM 引擎安装失败，不影响基础抠图。以后可手动：pip install torch segment-anything"
-    }
+      pip install torch --index-url https://download.pytorch.org/whl/cpu
+      if [ $? -eq 0 ]; then
+        echo "  ② 安装 segment-anything..."
+        pip install segment-anything
+        if [ $? -eq 0 ]; then
+          echo "  ✅ SAM 引擎依赖安装完成"
+        else
+          echo "  ⚠ segment-anything 安装失败，SAM 引擎不可用（不影响基础抠图）"
+        fi
+      else
+        echo "  ⚠ torch 安装失败，SAM 引擎不可用（不影响基础抠图）"
+      fi
+    else
+      echo "  ✅ SAM 依赖已就绪"
+    fi
 
     # 预下载 rembg 模型（避免首次抠图超时）
     echo "→ 下载 rembg 模型 (~176MB)..."
