@@ -1,4 +1,4 @@
-"""核心同步逻辑 — clone bare / fetch / push --mirror，含自动凭据管理。"""
+"""核心同步逻辑 — clone bare / fetch / push --all + --tags，含自动凭据管理。"""
 
 import json
 import os
