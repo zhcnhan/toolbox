@@ -18,13 +18,13 @@ const ENGINE_TIPS = {
   sam_local:
     '🤖 这个最聪明了，能认出图片里有什么东西。\n但是它需要一个 1.2GB 的大脑（模型文件），第一次用的时候要下载一下。\n等下载完了之后，连头发丝都能抠干净！',
   gemini_mask:
-    '☁️ 这个需要哥哥帮你去弄一个叫 API Key 的东西才能用哦。\n它是 Google 家的 AI，会把你的图片发到 Google 去处理。\n按次数收费的，省着点用～',
+    '☁️ 这个需要找开发者要一个叫 API Key 的东西才能用哦。\n它是 Google 家的 AI，会把你的图片发到 Google 去处理。\n按次数收费的，省着点用～',
   remove_bg:
     '☁️ 这个是另一个云端引擎，也需要 API Key。\n它是专门做抠图的网站，抠人像效果很好，但也要花钱的。',
   kimi:
     '☁️ 月之暗面的 Kimi AI，也需要 Key。\n适合抠一些小的物体，比如杯子、手机、玩具这种。\n也是按次数收费的～',
   custom:
-    '🔧 这个是给懂技术的哥哥用的，可以连接任何 AI 接口。\n妮妮不要碰这个，容易弄坏 😝',
+    '🔧 这个是给开发者调试用的，可以连接各种 AI 接口。\n妮妮用不到这个～',
   gemini:
     '☁️ Google 的 Gemini AI，需要 API Key。\n跟上面的 Gemini Mask 一样，只是这个模式不一样。',
 };
@@ -34,7 +34,7 @@ const ENGINE_MODE_WARNINGS = {
   gemini_mask_polygon: (
     <div className="text-[11px] text-amber-300/80 bg-amber-500/10 p-2 rounded-lg mt-2 leading-relaxed">
       ⚠️ 妮妮注意：这个「坐标模式」是让 AI 自己猜要抠哪里，但 AI 猜得不准！<br />
-      经常抠出来乱七八糟的。哥哥建议你不要用这个模式哦～<br />
+      经常抠出来乱七八糟的。建议不要用这个模式哦～<br />
       用上面那个「掩膜 PNG」模式效果会好很多，但需要 Key 绑卡才能用。<br />
       所以妮妮还是用最上面那个自动的 <b>rembg</b> 吧！又快又好！
     </div>
@@ -381,7 +381,7 @@ function ProxySettings({ proxyConfig, onProxySave }) {
   return (
     <div className="mt-6 p-4 glass-light">
       <h3 className="text-sm font-semibold text-pink-300/60 mb-3 tracking-wide">
-        🌐 网络设置（一般用不到，让哥哥来弄）
+        🌐 网络设置（一般用不到，需要的话找开发者）
       </h3>
       <div className="space-y-3">
         <label className="flex items-center gap-2 text-sm">

@@ -511,7 +511,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="text-center mt-12 pb-6 text-white/20 text-xs">
-        给妮妮的 🎀 有什么不会的就问哥哥~
+        给妮妮的 🎀 加油试试看吧~
       </footer>
     </div>
   );
