@@ -91,9 +91,11 @@ if [ ! -d "backend/venv" ] || [ ! -d "frontend/node_modules" ] || [ ! -d "backen
     if [ "$ARCH" = "arm64" ]; then
       echo "→ 检测到 Apple Silicon ($ARCH)，安装 CoreML 加速版 onnxruntime..."
       pip uninstall onnxruntime -y -q 2>/dev/null
-      pip install onnxruntime-silicon -q -i https://pypi.tuna.tsinghua.edu.cn/simple 2>/dev/null && \
-        echo "  ✅ onnxruntime-silicon 安装完成（推理速度翻倍）" || \
-        echo "  ⚠ onnxruntime-silicon 安装失败，使用通用版 onnxruntime"
+      # 清华镜像可能没有 onnxruntime-silicon，先用官方源试，不行回退
+      pip install onnxruntime-silicon -q 2>/dev/null || \
+        pip install onnxruntime-silicon -q -i https://pypi.tuna.tsinghua.edu.cn/simple 2>/dev/null || \
+        (echo "  ⚠ onnxruntime-silicon 不可用，重新安装通用版 onnxruntime" && \
+         pip install onnxruntime>=1.16.0 -q -i https://pypi.tuna.tsinghua.edu.cn/simple)
     fi
 
     # 预下载 rembg 模型（避免首次抠图超时）
@@ -149,8 +151,15 @@ if [ ! -d "backend/venv" ] || [ ! -d "frontend/node_modules" ] || [ ! -d "backen
     echo ""
     echo "→ SAM 1 ViT-L 模型（~1.25GB），用于高精度本地 AI 抠图"
     echo "  如果现在不下载，在网页上首次使用 SAM 引擎时会自动下载（较慢）"
-    read -p "  是否现在下载（推荐）？[Y/n] " dl_sam
-    if [[ ! "$dl_sam" =~ ^[Nn]$ ]]; then
+    # 用 macOS 原生弹窗代替 read，避免 .command 双击时 stdin 不工作
+    DL_SAM=""
+    if command -v osascript &>/dev/null; then
+      DL_SAM=$(osascript -e 'button returned of (display dialog "下载 SAM 1 ViT-L 模型（~1.25GB）吗？\n这是高精度 AI 抠图引擎，不装也不影响基础抠图。" buttons {"不下载", "下载"} default button "不下载" with icon note)' 2>/dev/null)
+    else
+      read -p "  是否现在下载（推荐）？[y/N] " dl_sam
+      [ "$dl_sam" = "y" ] || [ "$dl_sam" = "Y" ] && DL_SAM="下载"
+    fi
+    if [ "$DL_SAM" = "下载" ]; then
       echo "→ 下载 SAM 模型中..."
       mkdir -p "$HOME/.cache/sam"
       SAM_URL="https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth"
