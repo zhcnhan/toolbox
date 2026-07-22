@@ -350,7 +350,7 @@ export default function App() {
             animate={{ y: [0, -3, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
           >
-            <span className="bg-gradient-to-r from-accent-pink via-accent-lavender to-accent-blue bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-[#00fff7] via-[#a855f7] to-[#ff00aa] bg-clip-text text-transparent neon-text">
               妮妮的抠图小工具
             </span>
           </motion.h1>
