@@ -172,14 +172,14 @@ function initSolarSystem() {
     ['冥王星',0.003, 290,'#ccbbaa', 2.5,'矮行星，曾被降级但仍受关注'],
   ];
 
+  // ⚠️ 物理空间使用圆形轨道（不压扁），压扁仅在渲染时做
   for (const [name, mass, orbit, color, rad, info] of pData) {
     const angle = Math.random() * Math.PI * 2;
     const x = Math.cos(angle) * orbit;
-    const y = Math.sin(angle) * orbit * 0.8;
-    // 圆形轨道速度: v = sqrt(G*M/r)，不加额外因子
+    const y = Math.sin(angle) * orbit;
     const vCirc = Math.sqrt(G * 1000 / orbit);
     const vx = -Math.sin(angle) * vCirc;
-    const vy = Math.cos(angle) * vCirc * 0.8;
+    const vy = Math.cos(angle) * vCirc;
     b.push(new Body(name, mass, x, y, vx, vy, color, rad, info));
   }
 
@@ -192,26 +192,26 @@ function initSolarSystem() {
     earth.vx - Math.sin(moonAngle)*0.3, earth.vy + Math.cos(moonAngle)*0.3,
     '#cccccc', 1.8, '地球唯一的天然卫星'));
 
-  // 小行星带（火星木星之间，约80个，只受太阳+木星引力）
+  // 小行星带（火星木星之间, ~80颗）
   for (let i=0; i<60; i++) {
     const a = Math.random() * Math.PI * 2;
-    const r = 110 + Math.random() * 20;
-    const v = Math.sqrt(G * 1000 / r) * (0.85 + Math.random() * 0.3);
-    b.push(new Body('', 0.0001,
-      Math.cos(a)*r, Math.sin(a)*r*0.8,
-      -Math.sin(a)*v, Math.cos(a)*v*0.8,
+    const r = 108 + Math.random() * 22;
+    const v = Math.sqrt(G * 1000 / r) * (0.95 + Math.random() * 0.1);
+    b.push(new Body('', 0.00008,
+      Math.cos(a)*r, Math.sin(a)*r,
+      -Math.sin(a)*v, Math.cos(a)*v,
       '#887766', 1.2, ''));
   }
 
-  // 柯伊伯带（海王星外侧）
+  // 柯伊伯带（海王星外侧, ~40颗）
   for (let i=0; i<40; i++) {
     const a = Math.random() * Math.PI * 2;
-    const r = 270 + Math.random() * 50;
-    const v = Math.sqrt(G * 1000 / r) * (0.7 + Math.random() * 0.5);
-    b.push(new Body('', 0.00005,
-      Math.cos(a)*r, Math.sin(a)*r*0.8,
-      -Math.sin(a)*v, Math.cos(a)*v*0.8,
-      '#6a5a8a', 0.8, ''));
+    const r = 260 + Math.random() * 60;
+    const v = Math.sqrt(G * 1000 / r) * (0.9 + Math.random() * 0.2);
+    b.push(new Body('', 0.00003,
+      Math.cos(a)*r, Math.sin(a)*r,
+      -Math.sin(a)*v, Math.cos(a)*v,
+      '#5a4a7a', 0.8, ''));
   }
 
   return b;
@@ -438,9 +438,9 @@ function render() {
     ctx.beginPath(); ctx.arc(s[0],s[1],s[2]*0.4,0,Math.PI*2); ctx.fill();
   });
 
-  // 物理坐标→屏幕坐标
+  // 物理坐标→屏幕坐标（y轴压扁0.6倍，视觉上更像从侧面看太阳系）
   function sx(x) { return CX + x * zoom; }
-  function sy(y) { return CY + y * zoom; }
+  function sy(y) { return CY + y * zoom * 0.6; }
 
   // 轨道
   if (_showOrbits) {
